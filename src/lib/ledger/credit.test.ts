@@ -41,6 +41,11 @@ describe("invoiceBalanceCents", () => {
     expect(invoiceBalanceCents(55000, 44000, 11000)).toBe(0);
     expect(invoiceBalanceCents(55000, 0, 99000)).toBe(0);
   });
+
+  it("subtracts retention held from the amount due now", () => {
+    expect(invoiceBalanceCents(44000, 0, 0, 2200)).toBe(41800);
+    expect(invoiceBalanceCents(44000, 41800, 0, 2200)).toBe(0);
+  });
 });
 
 describe("creditExceedsBalance", () => {

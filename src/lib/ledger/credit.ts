@@ -23,8 +23,12 @@ export function invoiceBalanceCents(
   invoiceTotalCents: number,
   paidCents: number,
   creditedCents: number,
+  retentionHeldCents = 0,
 ): number {
-  return Math.max(0, invoiceTotalCents - paidCents - creditedCents);
+  return Math.max(
+    0,
+    invoiceTotalCents - paidCents - creditedCents - retentionHeldCents,
+  );
 }
 
 export function creditExceedsBalance(
@@ -55,11 +59,13 @@ export function invoiceSettlement(input: {
   invoiceTotalCents: number;
   paidCents: number;
   creditedCents: number;
+  retentionHeldCents?: number;
 }): { remainingCents: number; payState: InvoicePayState } {
   const remainingCents = invoiceBalanceCents(
     input.invoiceTotalCents,
     input.paidCents,
     input.creditedCents,
+    input.retentionHeldCents ?? 0,
   );
   return {
     remainingCents,

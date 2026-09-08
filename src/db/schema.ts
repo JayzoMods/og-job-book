@@ -20,6 +20,7 @@ export const orgs = pgTable("orgs", {
   bsb: text("bsb").notNull().default(""),
   accountNumber: text("account_number").notNull().default(""),
   payId: text("payid").notNull().default(""),
+  retentionPercent: integer("retention_percent").notNull().default(0),
   nextQuoteSeq: integer("next_quote_seq").notNull().default(0),
   nextInvoiceSeq: integer("next_invoice_seq").notNull().default(0),
   nextCreditSeq: integer("next_credit_seq").notNull().default(0),
@@ -79,6 +80,10 @@ export const invoices = pgTable("invoices", {
   status: text("status").notNull(),
   dueDate: date("due_date", { mode: "string" }).notNull(),
   paymentTermsDays: integer("payment_terms_days").notNull().default(14),
+  kind: text("kind").notNull().default("standard"),
+  claimPercent: integer("claim_percent"),
+  retentionPercent: integer("retention_percent").notNull().default(0),
+  retentionHeldCents: integer("retention_held_cents").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

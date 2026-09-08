@@ -5,8 +5,11 @@ import {
   cancelJobAction,
   declineQuoteAction,
   deleteDraftQuoteAction,
+  issueClaimAction,
   issueCreditNoteAction,
   issueInvoiceAction,
+  issueRetentionReleaseAction,
+  issueVariationAction,
   recordPaymentAction,
   replaceQuoteLinesAction,
   sendQuoteAction,
@@ -25,6 +28,14 @@ import {
 } from "@/db/queries";
 import { formatAudFromCents } from "@/lib/ledger/money";
 import { invoiceSettlement } from "@/lib/ledger/credit";
+import {
+  claimedCentsFromInvoices,
+  invoiceKindSubtitle,
+  invoicePanelTitle,
+  netRetentionHeldCents,
+  parseInvoiceKind,
+  remainingContractCents,
+} from "@/lib/ledger/claim";
 import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { formatIsoDateAu } from "@/lib/ledger/print";
 import { todayIsoSydney } from "@/lib/ledger/tax";
@@ -40,12 +51,16 @@ import {
 const ERRORS: Record<string, string> = {
   lines: "Add at least one complete line (description, qty, unit price, tax code).",
   quote: "Could not save the quote. Cancelled jobs cannot take new quotes.",
-  invoice: "Invoice needs an accepted quote that has not already been invoiced.",
+  invoice: "A full invoice needs an accepted quote with nothing already claimed against it.",
   payment: "Payment needs a positive amount, a date, and a method.",
   cancel: "A paid job cannot be cancelled.",
   void: "Only an unpaid invoice can be voided.",
   credit:
     "Credit needs at least one line and cannot be more than the amount still owing.",
+  claim:
+    "Deposit and progress claims need a whole percent from 1 to 100 and cannot exceed what is left on the quote.",
+  variation: "A variation needs at least one complete line.",
+  retention: "Retention release cannot exceed the amount held.",
 };
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">) {
@@ -133,6 +148,18 @@ export default async function JobPage({
             validUntil: quote.validUntil,
             today,
           });
+          const invoiceRows = invoiceList.map((invoice) => ({
+            quoteId: invoice.quoteId,
+            status: invoice.status,
+            kind: invoice.kind,
+            totalCents: invoice.totals.totalCents,
+            retentionHeldCents: invoice.retentionHeldCents,
+          }));
+          const remaining = remainingContractCents(
+            quote.totals.totalCents,
+            claimedCentsFromInvoices(invoiceRows, quote.id),
+          );
+          const held = netRetentionHeldCents(invoiceRows, quote.id);
           return (
           <DocumentPanel
             key={quote.id}
@@ -152,6 +179,108 @@ export default async function JobPage({
                   <p className="text-sm text-warn">
                     This quote has expired. You can still accept it.
                   </p>
+                ) : null}
+                {quote.status === "accepted" && job.status !== "cancelled" ? (
+                  <div className="space-y-4 text-sm">
+                    <p>
+                      Contract remaining {formatAudFromCents(remaining)} of{" "}
+                      {formatAudFromCents(quote.totals.totalCents)}. Retention held{" "}
+                      {formatAudFromCents(held)}.
+                    </p>
+                    <p className="text-muted">
+                      Deposit and progress claims are billed as one GST-inclusive line
+                      against this quote. Variations are extra work. Retention is a hold of
+                      billed amounts, stamped when the invoice is issued. Not tax advice.
+                      Not dispatch.
+                    </p>
+                    {remaining > 0 ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <form action={issueClaimAction} className="space-y-2">
+                          <input type="hidden" name="quoteId" value={quote.id} />
+                          <input type="hidden" name="jobId" value={job.id} />
+                          <input type="hidden" name="kind" value="deposit" />
+                          <label className="block">
+                            Deposit % of quote
+                            <input
+                              className="field mt-1"
+                              name="percent"
+                              inputMode="numeric"
+                              defaultValue="20"
+                              required
+                            />
+                          </label>
+                          <button type="submit" className="btn btn-ghost">
+                            Issue deposit
+                          </button>
+                        </form>
+                        <form action={issueClaimAction} className="space-y-2">
+                          <input type="hidden" name="quoteId" value={quote.id} />
+                          <input type="hidden" name="jobId" value={job.id} />
+                          <input type="hidden" name="kind" value="progress" />
+                          <label className="block">
+                            Progress claim % of quote
+                            <input
+                              className="field mt-1"
+                              name="percent"
+                              inputMode="numeric"
+                              defaultValue="40"
+                              required
+                            />
+                          </label>
+                          <button type="submit" className="btn btn-ghost">
+                            Issue progress claim
+                          </button>
+                        </form>
+                      </div>
+                    ) : null}
+                    {remaining > 0 && remaining < quote.totals.totalCents ? (
+                      <form action={issueClaimAction}>
+                        <input type="hidden" name="quoteId" value={quote.id} />
+                        <input type="hidden" name="jobId" value={job.id} />
+                        <input type="hidden" name="kind" value="progress" />
+                        <input type="hidden" name="remainder" value="yes" />
+                        <button type="submit" className="btn btn-ghost">
+                          Issue remaining {formatAudFromCents(remaining)}
+                        </button>
+                      </form>
+                    ) : null}
+                    <form action={issueVariationAction} className="space-y-3">
+                      <input type="hidden" name="quoteId" value={quote.id} />
+                      <input type="hidden" name="jobId" value={job.id} />
+                      <p className="text-muted">
+                        Variation lines are extra billed work. They do not reduce the quote
+                        remaining.
+                      </p>
+                      <LineFields />
+                      <button type="submit" className="btn btn-ghost">
+                        Issue variation
+                      </button>
+                    </form>
+                    {held > 0 ? (
+                      <form
+                        action={issueRetentionReleaseAction}
+                        className="grid gap-2 sm:grid-cols-2"
+                      >
+                        <input type="hidden" name="quoteId" value={quote.id} />
+                        <input type="hidden" name="jobId" value={job.id} />
+                        <label>
+                          Retention release
+                          <input
+                            className="field mt-1"
+                            name="amount"
+                            required
+                            defaultValue={(held / 100).toFixed(2)}
+                            inputMode="decimal"
+                          />
+                        </label>
+                        <div className="flex items-end">
+                          <button type="submit" className="btn btn-ghost w-full">
+                            Issue retention release
+                          </button>
+                        </div>
+                      </form>
+                    ) : null}
+                  </div>
                 ) : null}
                 {quote.status === "draft" && job.status !== "cancelled" ? (
                 <form action={replaceQuoteLinesAction} className="space-y-4">
@@ -220,9 +349,7 @@ export default async function JobPage({
             ) : null}
             {quote.status === "accepted" &&
             job.status !== "cancelled" &&
-            !invoiceList.some(
-              (invoice) => invoice.quoteId === quote.id && invoice.status !== "void",
-            ) ? (
+            remaining === quote.totals.totalCents ? (
               <form action={issueInvoiceAction}>
                 <input type="hidden" name="quoteId" value={quote.id} />
                 <input type="hidden" name="jobId" value={job.id} />
@@ -249,13 +376,24 @@ export default async function JobPage({
       <section className="space-y-4">
         <h2 className="font-display text-2xl">Invoices and payments</h2>
         {invoiceList.length === 0 ? (
-          <p className="text-muted">No invoices yet. Accept a quote, then issue one.</p>
+          <p className="text-muted">
+            No invoices yet. Accept a quote, then issue an invoice, deposit, progress
+            claim, or variation.
+          </p>
         ) : null}
         {invoiceList.map((invoice) => {
+            const kind = parseInvoiceKind(invoice.kind);
+            const kindLine = invoiceKindSubtitle({
+              kind,
+              quoteDocNumber:
+                quoteList.find((quote) => quote.id === invoice.quoteId)?.docNumber ?? "",
+              percent: invoice.claimPercent,
+            });
             const { remainingCents, payState } = invoiceSettlement({
               invoiceTotalCents: invoice.totals.totalCents,
               paidCents: invoice.paidCents,
               creditedCents: invoice.creditedCents,
+              retentionHeldCents: invoice.retentionHeldCents,
             });
             const overdue = invoiceIsOverdue({
               status: invoice.status,
@@ -266,7 +404,7 @@ export default async function JobPage({
             return (
               <div key={invoice.id} className="space-y-4">
               <DocumentPanel
-                title={`Invoice ${invoice.docNumber}`}
+                title={invoicePanelTitle(invoice.docNumber, kind)}
                 status={invoiceDocumentStatus(invoice.status, payState, overdue)}
                 abn={org.abn}
                 gstRegistered={org.gstRegistered}
@@ -277,6 +415,13 @@ export default async function JobPage({
                       Payment terms: {paymentTermsLabel(invoice.paymentTermsDays)}. Due{" "}
                       {formatIsoDateAu(invoice.dueDate)}
                     </p>
+                    {kindLine ? <p>{kindLine}</p> : null}
+                    {invoice.retentionHeldCents > 0 ? (
+                      <p>
+                        Retention held {formatAudFromCents(invoice.retentionHeldCents)}. Amount
+                        due {formatAudFromCents(remainingCents)}.
+                      </p>
+                    ) : null}
                     {payLines.length > 0 ? (
                       <div className="space-y-1">
                         <dl className="space-y-1">

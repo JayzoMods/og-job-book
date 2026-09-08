@@ -47,13 +47,16 @@ describe("demo seed shape", () => {
       "Q-0002",
       "Q-0003",
       "Q-0004",
+      "Q-0005",
     ]);
     expect(demoSeed.invoices.map((invoice) => invoice.docNumber)).toEqual([
       "INV-0001",
       "INV-0002",
+      "INV-0003",
+      "INV-0004",
     ]);
-    expect(demoSeed.org.nextQuoteSeq).toBe(4);
-    expect(demoSeed.org.nextInvoiceSeq).toBe(2);
+    expect(demoSeed.org.nextQuoteSeq).toBe(5);
+    expect(demoSeed.org.nextInvoiceSeq).toBe(4);
     expect(demoSeed.org.nextCreditSeq).toBe(1);
     expect(demoSeed.creditNotes.map((note) => note.docNumber)).toEqual(["CN-0001"]);
   });
@@ -128,5 +131,40 @@ describe("demo seed shape", () => {
     expect(demoSeed.org.accountNumber).toBe("00012345");
     expect(formatBsb(demoSeed.org.bsb)).toBe("000-000");
     expect(hasInvoicePayDetails(invoicePayDetails(demoSeed.org))).toBe(true);
+  });
+
+  it("pins a deposit, variation, and 5% retention on Jordan Walsh without changing Q-0001 money", () => {
+    expect(demoSeed.org.retentionPercent).toBe(5);
+    const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
+    expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
+    const quote = demoSeed.quotes.find((row) => row.docNumber === "Q-0005");
+    expect(quote?.jobId).toBe(demoSeed.jobs.find((job) => job.customerName === "Jordan Walsh")?.id);
+    expect(computeDocument(quote!.lines).totalCents).toBe(220000);
+    expect(computeDocument(quote!.lines).gstCents).toBe(20000);
+    const deposit = demoSeed.invoices.find((invoice) => invoice.docNumber === "INV-0003");
+    expect(deposit?.kind).toBe("deposit");
+    expect(deposit?.claimPercent).toBe(20);
+    expect(deposit?.retentionHeldCents).toBe(2200);
+    const depositTotals = computeDocument(deposit!.lines);
+    expect(depositTotals.totalCents).toBe(44000);
+    expect(depositTotals.gstCents).toBe(4000);
+    const paid = demoSeed.payments
+      .filter((payment) => payment.invoiceId === deposit?.id)
+      .reduce((sum, payment) => sum + payment.amountCents, 0);
+    expect(paid).toBe(41800);
+    const variation = demoSeed.invoices.find((invoice) => invoice.docNumber === "INV-0004");
+    expect(variation?.kind).toBe("variation");
+    expect(variation?.retentionHeldCents).toBe(1650);
+    expect(computeDocument(variation!.lines).totalCents).toBe(33000);
+    expect(computeDocument(variation!.lines).gstCents).toBe(3000);
+    expect(variation?.dueDate).toBe("2026-09-23");
+    expect(
+      invoiceIsOverdue({
+        status: variation!.status,
+        dueDate: variation!.dueDate,
+        remainingCents: 33000 - 1650,
+        today: "2026-09-09",
+      }),
+    ).toBe(false);
   });
 });

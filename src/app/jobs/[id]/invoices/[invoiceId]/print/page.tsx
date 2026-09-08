@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
-import { getInvoiceById, getJob, isUuid } from "@/db/queries";
+import { getInvoiceById, getJob, getQuotesForJob, isUuid } from "@/db/queries";
+import { invoiceKindSubtitle, parseInvoiceKind } from "@/lib/ledger/claim";
+import { invoiceSettlement } from "@/lib/ledger/credit";
 import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { invoiceDocumentStatus, invoiceIsOverdue, paymentTermsLabel } from "@/lib/ledger/terms";
-import { invoiceSettlement } from "@/lib/ledger/credit";
 import { todayIsoSydney } from "@/lib/ledger/tax";
 
 export async function generateMetadata({
@@ -31,10 +32,16 @@ export default async function PrintInvoicePage({
     notFound();
   }
 
+  const quotes = invoice.quoteId
+    ? await getQuotesForJob(state.db, invoice.jobId)
+    : [];
+  const quoteNumber = quotes.find((quote) => quote.id === invoice.quoteId)?.docNumber ?? "";
+  const kind = parseInvoiceKind(invoice.kind);
   const { remainingCents, payState } = invoiceSettlement({
     invoiceTotalCents: invoice.totals.totalCents,
     paidCents: invoice.paidCents,
     creditedCents: invoice.creditedCents,
+    retentionHeldCents: invoice.retentionHeldCents,
   });
   const overdue = invoiceIsOverdue({
     status: invoice.status,
@@ -62,6 +69,13 @@ export default async function PrintInvoicePage({
       paidCents={invoice.paidCents}
       creditedCents={invoice.creditedCents}
       paymentTermsLabel={paymentTermsLabel(invoice.paymentTermsDays)}
+      kindLine={invoiceKindSubtitle({
+        kind,
+        quoteDocNumber: quoteNumber,
+        percent: invoice.claimPercent,
+      })}
+      retentionHeldCents={invoice.retentionHeldCents}
+      amountDueCents={remainingCents}
       payLines={invoicePayLines(
         invoicePayDetails({
           accountName: state.org.accountName,

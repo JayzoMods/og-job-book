@@ -41,6 +41,21 @@ import {
   parseCreditReason,
 } from "@/lib/ledger/credit";
 import {
+  claimedCentsFromInvoices,
+  claimExceedsRemaining,
+  claimLineDescription,
+  claimTaxCode,
+  netRetentionHeldCents,
+  nextJobStatusFromInvoices,
+  parseClaimPercent,
+  parseInvoiceKind,
+  parseRetentionPercent,
+  percentOfCents,
+  remainingContractCents,
+  retentionHeldCents,
+  type InvoiceKind,
+} from "@/lib/ledger/claim";
+import {
   parseAccountName,
   parseAccountNumber,
   parseBsb,
@@ -71,6 +86,7 @@ const orgSchema = z.object({
   bsb: z.string(),
   accountNumber: z.string(),
   payId: z.string(),
+  retentionPercent: z.string(),
 });
 
 const jobSchema = z.object({
@@ -108,6 +124,7 @@ export async function saveOrgAction(formData: FormData) {
     bsb: formData.get("bsb") ?? "",
     accountNumber: formData.get("accountNumber") ?? "",
     payId: formData.get("payId") ?? "",
+    retentionPercent: formData.get("retentionPercent") ?? "",
   });
   if (!parsed.success) {
     redirect("/?error=org");
@@ -124,6 +141,7 @@ export async function saveOrgAction(formData: FormData) {
     bsb: parseBsb(parsed.data.bsb),
     accountNumber: parseAccountNumber(parsed.data.accountNumber),
     payId: parsePayId(parsed.data.payId),
+    retentionPercent: parseRetentionPercent(parsed.data.retentionPercent),
   };
   if (existing) {
     await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
@@ -200,6 +218,92 @@ function readLines(formData: FormData) {
 
 function readValidUntil(formData: FormData, fallback: string): string {
   return parseIsoDate(String(formData.get("valid_until") ?? "")) ?? fallback;
+}
+
+type IssuedLine = {
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPriceCents: number;
+  taxCode: string;
+  amountKind: string;
+  sortOrder: number;
+};
+
+async function syncJobStatus(db: AppDb, jobId: string) {
+  const job = await getJob(db, jobId);
+  if (!job || job.status === "cancelled") {
+    return;
+  }
+  const invoiceList = await getInvoicesForJob(db, jobId);
+  const next = nextJobStatusFromInvoices(invoiceList);
+  if (job.status !== next) {
+    await db.update(jobs).set({ status: next }).where(eq(jobs.id, jobId));
+  }
+}
+
+async function insertIssuedInvoice(
+  tx: Parameters<Parameters<AppDb["transaction"]>[0]>[0],
+  input: {
+    orgId: string;
+    jobId: string;
+    quoteId: string;
+    kind: InvoiceKind;
+    claimPercent: number | null;
+    retentionPercent: number;
+    gstRegistered: boolean;
+    termsDays: number;
+    dueDate: string;
+    lines: IssuedLine[];
+  },
+) {
+  const totals = computeDocument(
+    input.lines.map((line) => ({
+      description: line.description,
+      quantity: line.quantity,
+      unitPriceCents: line.unitPriceCents,
+      unit: parseLineUnit(line.unit),
+      taxCode: parseTaxCode(line.taxCode) ?? "GST",
+      amountKind: parseAmountKind(line.amountKind),
+    })),
+    input.gstRegistered,
+  );
+  const held =
+    input.kind === "retention"
+      ? 0
+      : retentionHeldCents(totals.totalCents, input.retentionPercent);
+  const docNumber = await allocateDocNumber(tx, input.orgId, "invoice");
+  const [invoice] = await tx
+    .insert(invoices)
+    .values({
+      jobId: input.jobId,
+      quoteId: input.quoteId,
+      docNumber,
+      status: "sent",
+      dueDate: input.dueDate,
+      paymentTermsDays: input.termsDays,
+      kind: input.kind,
+      claimPercent: input.claimPercent,
+      retentionPercent: input.kind === "retention" ? 0 : input.retentionPercent,
+      retentionHeldCents: held,
+    })
+    .returning({ id: invoices.id });
+  if (!invoice) {
+    throw new Error("invoice insert failed");
+  }
+  await tx.insert(invoiceLines).values(
+    input.lines.map((line) => ({
+      invoiceId: invoice.id,
+      description: line.description,
+      quantity: line.quantity,
+      unit: line.unit,
+      unitPriceCents: line.unitPriceCents,
+      taxCode: line.taxCode,
+      amountKind: line.amountKind,
+      sortOrder: line.sortOrder,
+    })),
+  );
+  await tx.update(jobs).set({ status: "invoiced" }).where(eq(jobs.id, input.jobId));
 }
 
 export async function createQuoteAction(formData: FormData) {
@@ -312,31 +416,34 @@ export async function issueInvoiceAction(formData: FormData) {
     redirect(`/jobs/${jobId}?error=invoice`);
   }
   const existing = await getInvoicesForJob(db, jobId);
-  if (existing.some((invoice) => invoice.quoteId === quoteId && invoice.status !== "void")) {
+  const claimed = claimedCentsFromInvoices(
+    existing.map((invoice) => ({
+      quoteId: invoice.quoteId,
+      status: invoice.status,
+      kind: invoice.kind,
+      totalCents: invoice.totals.totalCents,
+    })),
+    quoteId,
+  );
+  if (claimed > 0) {
     redirect(`/jobs/${jobId}?error=invoice`);
   }
   const termsDays = parsePaymentTermsDays(org.paymentTermsDays);
   const dueDate = dueDateFromTerms(todayIsoSydney(), termsDays);
+  const retentionPercent = parseRetentionPercent(org.retentionPercent);
   try {
     await db.transaction(async (tx) => {
-      const docNumber = await allocateDocNumber(tx, job.orgId, "invoice");
-      const [invoice] = await tx
-        .insert(invoices)
-        .values({
-          jobId,
-          quoteId,
-          docNumber,
-          status: "sent",
-          dueDate,
-          paymentTermsDays: termsDays,
-        })
-        .returning({ id: invoices.id });
-      if (!invoice) {
-        throw new Error("invoice insert failed");
-      }
-      await tx.insert(invoiceLines).values(
-        quote.lines.map((line, index) => ({
-          invoiceId: invoice.id,
+      await insertIssuedInvoice(tx, {
+        orgId: job.orgId,
+        jobId,
+        quoteId,
+        kind: "standard",
+        claimPercent: null,
+        retentionPercent,
+        gstRegistered: org.gstRegistered,
+        termsDays,
+        dueDate,
+        lines: quote.lines.map((line, index) => ({
           description: line.description,
           quantity: line.quantity,
           unit: line.unit,
@@ -345,13 +452,229 @@ export async function issueInvoiceAction(formData: FormData) {
           amountKind: line.amountKind,
           sortOrder: index,
         })),
-      );
-      if (job.status !== "paid") {
-        await tx.update(jobs).set({ status: "invoiced" }).where(eq(jobs.id, jobId));
-      }
+      });
     });
   } catch {
     redirect(`/jobs/${jobId}?error=invoice`);
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/jobs/${jobId}`);
+}
+
+export async function issueClaimAction(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "");
+  const jobId = String(formData.get("jobId") ?? "");
+  const kindRaw = String(formData.get("kind") ?? "");
+  const remainder = String(formData.get("remainder") ?? "") === "yes";
+  if (!isUuid(quoteId) || !isUuid(jobId)) {
+    redirect("/?error=job");
+  }
+  const kind = parseInvoiceKind(kindRaw);
+  if (kind !== "deposit" && kind !== "progress") {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  const db = requireDb();
+  const quoteList = await getQuotesForJob(db, jobId);
+  const quote = quoteList.find((row) => row.id === quoteId);
+  if (!quote || quote.status !== "accepted") {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  const job = await getJob(db, jobId);
+  if (!job || job.status === "cancelled") {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  const org = await getOrg(db);
+  if (!org) {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  const existing = await getInvoicesForJob(db, jobId);
+  const remaining = remainingContractCents(
+    quote.totals.totalCents,
+    claimedCentsFromInvoices(
+      existing.map((invoice) => ({
+        quoteId: invoice.quoteId,
+        status: invoice.status,
+        kind: invoice.kind,
+        totalCents: invoice.totals.totalCents,
+      })),
+      quoteId,
+    ),
+  );
+  const percent = remainder ? null : parseClaimPercent(String(formData.get("percent") ?? ""));
+  if (!remainder && percent === null) {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  const claimCents = remainder
+    ? remaining
+    : percentOfCents(quote.totals.totalCents, percent ?? 0);
+  if (claimCents <= 0 || claimExceedsRemaining(claimCents, remaining)) {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  const termsDays = parsePaymentTermsDays(org.paymentTermsDays);
+  const dueDate = dueDateFromTerms(todayIsoSydney(), termsDays);
+  const retentionPercent = parseRetentionPercent(org.retentionPercent);
+  const taxCode = claimTaxCode(quote.lines.map((line) => line.taxCode));
+  try {
+    await db.transaction(async (tx) => {
+      await insertIssuedInvoice(tx, {
+        orgId: job.orgId,
+        jobId,
+        quoteId,
+        kind,
+        claimPercent: remainder ? null : percent,
+        retentionPercent,
+        gstRegistered: org.gstRegistered,
+        termsDays,
+        dueDate,
+        lines: [
+          {
+            description: claimLineDescription({
+              kind,
+              quoteDocNumber: quote.docNumber,
+              percent,
+              remainder,
+            }),
+            quantity: 1,
+            unit: "each",
+            unitPriceCents: claimCents,
+            taxCode,
+            amountKind: "inclusive",
+            sortOrder: 0,
+          },
+        ],
+      });
+    });
+  } catch {
+    redirect(`/jobs/${jobId}?error=claim`);
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/jobs/${jobId}`);
+}
+
+export async function issueVariationAction(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "");
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!isUuid(quoteId) || !isUuid(jobId)) {
+    redirect("/?error=job");
+  }
+  const lines = readLines(formData);
+  if (lines.length === 0) {
+    redirect(`/jobs/${jobId}?error=variation`);
+  }
+  const db = requireDb();
+  const quoteList = await getQuotesForJob(db, jobId);
+  const quote = quoteList.find((row) => row.id === quoteId);
+  if (!quote || quote.status !== "accepted") {
+    redirect(`/jobs/${jobId}?error=variation`);
+  }
+  const job = await getJob(db, jobId);
+  if (!job || job.status === "cancelled") {
+    redirect(`/jobs/${jobId}?error=variation`);
+  }
+  const org = await getOrg(db);
+  if (!org) {
+    redirect(`/jobs/${jobId}?error=variation`);
+  }
+  const totals = computeDocument(lines, org.gstRegistered);
+  if (totals.totalCents <= 0) {
+    redirect(`/jobs/${jobId}?error=variation`);
+  }
+  const termsDays = parsePaymentTermsDays(org.paymentTermsDays);
+  const dueDate = dueDateFromTerms(todayIsoSydney(), termsDays);
+  const retentionPercent = parseRetentionPercent(org.retentionPercent);
+  try {
+    await db.transaction(async (tx) => {
+      await insertIssuedInvoice(tx, {
+        orgId: job.orgId,
+        jobId,
+        quoteId,
+        kind: "variation",
+        claimPercent: null,
+        retentionPercent,
+        gstRegistered: org.gstRegistered,
+        termsDays,
+        dueDate,
+        lines,
+      });
+    });
+  } catch {
+    redirect(`/jobs/${jobId}?error=variation`);
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/jobs/${jobId}`);
+}
+
+export async function issueRetentionReleaseAction(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "");
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!isUuid(quoteId) || !isUuid(jobId)) {
+    redirect("/?error=job");
+  }
+  const dollars = parseAudAmount(String(formData.get("amount") ?? ""));
+  const db = requireDb();
+  const quoteList = await getQuotesForJob(db, jobId);
+  const quote = quoteList.find((row) => row.id === quoteId);
+  if (!quote || quote.status !== "accepted" || dollars === null || dollars <= 0) {
+    redirect(`/jobs/${jobId}?error=retention`);
+  }
+  const job = await getJob(db, jobId);
+  if (!job || job.status === "cancelled") {
+    redirect(`/jobs/${jobId}?error=retention`);
+  }
+  const org = await getOrg(db);
+  if (!org) {
+    redirect(`/jobs/${jobId}?error=retention`);
+  }
+  const existing = await getInvoicesForJob(db, jobId);
+  const held = netRetentionHeldCents(
+    existing.map((invoice) => ({
+      quoteId: invoice.quoteId,
+      status: invoice.status,
+      kind: invoice.kind,
+      retentionHeldCents: invoice.retentionHeldCents,
+      totalCents: invoice.totals.totalCents,
+    })),
+    quoteId,
+  );
+  const amountCents = dollarsToCents(dollars);
+  if (amountCents <= 0 || amountCents > held) {
+    redirect(`/jobs/${jobId}?error=retention`);
+  }
+  const termsDays = parsePaymentTermsDays(org.paymentTermsDays);
+  const dueDate = dueDateFromTerms(todayIsoSydney(), termsDays);
+  const taxCode = claimTaxCode(quote.lines.map((line) => line.taxCode));
+  try {
+    await db.transaction(async (tx) => {
+      await insertIssuedInvoice(tx, {
+        orgId: job.orgId,
+        jobId,
+        quoteId,
+        kind: "retention",
+        claimPercent: null,
+        retentionPercent: 0,
+        gstRegistered: org.gstRegistered,
+        termsDays,
+        dueDate,
+        lines: [
+          {
+            description: claimLineDescription({
+              kind: "retention",
+              quoteDocNumber: quote.docNumber,
+              percent: null,
+              remainder: false,
+            }),
+            quantity: 1,
+            unit: "each",
+            unitPriceCents: amountCents,
+            taxCode,
+            amountKind: "inclusive",
+            sortOrder: 0,
+          },
+        ],
+      });
+    });
+  } catch {
+    redirect(`/jobs/${jobId}?error=retention`);
   }
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}`);
@@ -389,11 +712,12 @@ export async function recordPaymentAction(formData: FormData) {
     invoice.totals.totalCents,
     invoice.paidCents + amountCents,
     invoice.creditedCents,
+    invoice.retentionHeldCents,
   );
   if (remainingAfter <= 0 && invoice.totals.totalCents > 0) {
     await db.update(invoices).set({ status: "paid" }).where(eq(invoices.id, invoice.id));
-    await db.update(jobs).set({ status: "paid" }).where(eq(jobs.id, jobId));
   }
+  await syncJobStatus(db, jobId);
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}`);
 }
@@ -485,13 +809,7 @@ export async function voidInvoiceAction(formData: FormData) {
     redirect(`/jobs/${jobId}?error=void`);
   }
   await db.update(invoices).set({ status: "void" }).where(eq(invoices.id, invoiceId));
-  const remaining = invoiceList.filter(
-    (row) => row.id !== invoiceId && row.status !== "void" && row.status !== "paid",
-  );
-  const job = await getJob(db, jobId);
-  if (job && job.status === "invoiced" && remaining.length === 0) {
-    await db.update(jobs).set({ status: "accepted" }).where(eq(jobs.id, jobId));
-  }
+  await syncJobStatus(db, jobId);
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}`);
 }
@@ -526,6 +844,7 @@ export async function issueCreditNoteAction(formData: FormData) {
     invoice.totals.totalCents,
     invoice.paidCents,
     invoice.creditedCents,
+    invoice.retentionHeldCents,
   );
   if (totals.totalCents <= 0 || creditExceedsBalance(totals.totalCents, balance)) {
     redirect(`/jobs/${jobId}?error=credit`);

@@ -29,6 +29,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
     bsb: demoSeed.org.bsb,
     accountNumber: demoSeed.org.accountNumber,
     payId: demoSeed.org.payId,
+    retentionPercent: demoSeed.org.retentionPercent,
     nextQuoteSeq: demoSeed.org.nextQuoteSeq,
     nextInvoiceSeq: demoSeed.org.nextInvoiceSeq,
     nextCreditSeq: demoSeed.org.nextCreditSeq,
@@ -77,6 +78,10 @@ export async function seedDemo(db: AppDb): Promise<string> {
       status: invoice.status,
       dueDate: invoice.dueDate,
       paymentTermsDays: invoice.paymentTermsDays,
+      kind: invoice.kind,
+      claimPercent: invoice.claimPercent,
+      retentionPercent: invoice.retentionPercent,
+      retentionHeldCents: invoice.retentionHeldCents,
     });
     await db.insert(invoiceLines).values(
       invoice.lines.map((line) => ({

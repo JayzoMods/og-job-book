@@ -11,6 +11,7 @@ import { formatAbn, isValidAbn } from "@/lib/ledger/abn";
 import { abrLookupConfigured } from "@/lib/ledger/abr";
 import { formatBsb } from "@/lib/ledger/pay";
 import { PAYMENT_TERMS_OPTIONS, parsePaymentTermsDays, paymentTermsLabel } from "@/lib/ledger/terms";
+import { parseRetentionPercent, RETENTION_PERCENT_OPTIONS } from "@/lib/ledger/claim";
 
 const ERRORS: Record<string, string> = {
   db: "Postgres is not connected. Run docker compose up -d, then npm run db:apply.",
@@ -126,6 +127,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </select>
             </label>
             <label className="text-sm">
+              Retention
+              <select
+                className="field mt-1"
+                name="retentionPercent"
+                defaultValue={String(parseRetentionPercent(org?.retentionPercent))}
+              >
+                {RETENTION_PERCENT_OPTIONS.map((percent) => (
+                  <option key={percent} value={percent}>
+                    {percent === 0 ? "None" : `${percent}% held on claims`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
               Account name
               <input
                 className="field mt-1"
@@ -165,8 +180,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </label>
             <p className="text-sm text-muted sm:col-span-2">
               If GST registered is off, quotes and invoices do not charge GST. Payment terms
-              set the due date on new invoices. PayID and BSB are shown on invoices only. We
-              do not check the account. This is not Confirmation of Payee and not tax advice.
+              set the due date on new invoices. Retention is held on deposit, progress,
+              variation, and full invoices when they are issued. PayID and BSB are shown on
+              invoices only. We do not check the account. This is not Confirmation of Payee
+              and not tax advice.
             </p>
             {org && !isValidAbn(org.abn) ? (
               <p className="text-sm text-warn sm:col-span-2">

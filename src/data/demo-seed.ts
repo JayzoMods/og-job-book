@@ -13,21 +13,29 @@ export const DEMO_IDS = {
   jobQuoted: "a0000000-0000-4000-8000-000000000012",
   jobPaid: "a0000000-0000-4000-8000-000000000013",
   jobInvoiced: "a0000000-0000-4000-8000-000000000014",
+  jobClaims: "a0000000-0000-4000-8000-000000000015",
   quoteMixed: "a0000000-0000-4000-8000-000000000021",
   quoteAccepted: "a0000000-0000-4000-8000-000000000022",
   quoteDraft: "a0000000-0000-4000-8000-000000000023",
   quoteUnpaid: "a0000000-0000-4000-8000-000000000024",
+  quoteClaims: "a0000000-0000-4000-8000-000000000025",
   quoteLineGst: "a0000000-0000-4000-8000-000000000031",
   quoteLineFree: "a0000000-0000-4000-8000-000000000032",
   quoteLinePaid: "a0000000-0000-4000-8000-000000000033",
   quoteLineDraft: "a0000000-0000-4000-8000-000000000034",
   quoteLineDraftM2: "a0000000-0000-4000-8000-000000000036",
   quoteLineUnpaid: "a0000000-0000-4000-8000-000000000035",
+  quoteLineClaims: "a0000000-0000-4000-8000-000000000037",
   invoice: "a0000000-0000-4000-8000-000000000041",
   invoiceUnpaid: "a0000000-0000-4000-8000-000000000042",
+  invoiceDeposit: "a0000000-0000-4000-8000-000000000043",
+  invoiceVariation: "a0000000-0000-4000-8000-000000000044",
   invoiceLine: "a0000000-0000-4000-8000-000000000051",
   invoiceLineUnpaid: "a0000000-0000-4000-8000-000000000052",
+  invoiceLineDeposit: "a0000000-0000-4000-8000-000000000053",
+  invoiceLineVariation: "a0000000-0000-4000-8000-000000000054",
   payment: "a0000000-0000-4000-8000-000000000061",
+  paymentDeposit: "a0000000-0000-4000-8000-000000000062",
   creditNote: "a0000000-0000-4000-8000-000000000071",
   creditNoteLine: "a0000000-0000-4000-8000-000000000072",
 } as const;
@@ -55,6 +63,7 @@ export type DemoSeed = {
     bsb: string;
     accountNumber: string;
     payId: string;
+    retentionPercent: number;
     nextQuoteSeq: number;
     nextInvoiceSeq: number;
     nextCreditSeq: number;
@@ -82,6 +91,10 @@ export type DemoSeed = {
     status: "draft" | "sent" | "paid" | "void";
     dueDate: string;
     paymentTermsDays: number;
+    kind: "standard" | "deposit" | "progress" | "variation" | "retention";
+    claimPercent: number | null;
+    retentionPercent: number;
+    retentionHeldCents: number;
     lines: DemoLine[];
   }>;
   payments: Array<{
@@ -115,8 +128,9 @@ export const demoSeed: DemoSeed = {
     bsb: "000000",
     accountNumber: "00012345",
     payId: "harbourline@example.com",
-    nextQuoteSeq: 4,
-    nextInvoiceSeq: 2,
+    retentionPercent: 5,
+    nextQuoteSeq: 5,
+    nextInvoiceSeq: 4,
     nextCreditSeq: 1,
   },
   jobs: [
@@ -146,6 +160,13 @@ export const demoSeed: DemoSeed = {
       customerName: "Alex Moretti",
       suburb: "Balmain",
       description: "Pest inspection before settlement",
+      status: "invoiced",
+    },
+    {
+      id: DEMO_IDS.jobClaims,
+      customerName: "Jordan Walsh",
+      suburb: "Glebe",
+      description: "Storm rectification — roof sheets and flashing",
       status: "invoiced",
     },
   ],
@@ -246,6 +267,25 @@ export const demoSeed: DemoSeed = {
         },
       ],
     },
+    {
+      id: DEMO_IDS.quoteClaims,
+      jobId: DEMO_IDS.jobClaims,
+      docNumber: "Q-0005",
+      status: "accepted",
+      validUntil: "2026-10-15",
+      lines: [
+        {
+          id: DEMO_IDS.quoteLineClaims,
+          description: "Storm rectification — roof sheets and flashing",
+          quantity: 1,
+          unit: "each",
+          unitPriceCents: 220000,
+          taxCode: "GST",
+          amountKind: "inclusive",
+          sortOrder: 0,
+        },
+      ],
+    },
   ],
   invoices: [
     {
@@ -256,6 +296,10 @@ export const demoSeed: DemoSeed = {
       status: "paid",
       dueDate: "2026-08-15",
       paymentTermsDays: 14,
+      kind: "standard",
+      claimPercent: null,
+      retentionPercent: 0,
+      retentionHeldCents: 0,
       lines: [
         {
           id: DEMO_IDS.invoiceLine,
@@ -277,6 +321,10 @@ export const demoSeed: DemoSeed = {
       status: "sent",
       dueDate: "2026-09-01",
       paymentTermsDays: 14,
+      kind: "standard",
+      claimPercent: null,
+      retentionPercent: 0,
+      retentionHeldCents: 0,
       lines: [
         {
           id: DEMO_IDS.invoiceLineUnpaid,
@@ -290,6 +338,56 @@ export const demoSeed: DemoSeed = {
         },
       ],
     },
+    {
+      id: DEMO_IDS.invoiceDeposit,
+      jobId: DEMO_IDS.jobClaims,
+      quoteId: DEMO_IDS.quoteClaims,
+      docNumber: "INV-0003",
+      status: "paid",
+      dueDate: "2026-08-26",
+      paymentTermsDays: 14,
+      kind: "deposit",
+      claimPercent: 20,
+      retentionPercent: 5,
+      retentionHeldCents: 2200,
+      lines: [
+        {
+          id: DEMO_IDS.invoiceLineDeposit,
+          description: "Deposit 20% of Q-0005",
+          quantity: 1,
+          unit: "each",
+          unitPriceCents: 44000,
+          taxCode: "GST",
+          amountKind: "inclusive",
+          sortOrder: 0,
+        },
+      ],
+    },
+    {
+      id: DEMO_IDS.invoiceVariation,
+      jobId: DEMO_IDS.jobClaims,
+      quoteId: DEMO_IDS.quoteClaims,
+      docNumber: "INV-0004",
+      status: "sent",
+      dueDate: "2026-09-23",
+      paymentTermsDays: 14,
+      kind: "variation",
+      claimPercent: null,
+      retentionPercent: 5,
+      retentionHeldCents: 1650,
+      lines: [
+        {
+          id: DEMO_IDS.invoiceLineVariation,
+          description: "Extra flashing at south parapet",
+          quantity: 1,
+          unit: "each",
+          unitPriceCents: 33000,
+          taxCode: "GST",
+          amountKind: "inclusive",
+          sortOrder: 0,
+        },
+      ],
+    },
   ],
   payments: [
     {
@@ -297,6 +395,13 @@ export const demoSeed: DemoSeed = {
       invoiceId: DEMO_IDS.invoice,
       amountCents: 44000,
       paidOn: "2026-08-10",
+      method: "transfer",
+    },
+    {
+      id: DEMO_IDS.paymentDeposit,
+      invoiceId: DEMO_IDS.invoiceDeposit,
+      amountCents: 41800,
+      paidOn: "2026-08-18",
       method: "transfer",
     },
   ],

@@ -30,6 +30,9 @@ export function PrintSheet({
   payLines,
   againstLabel,
   reason,
+  kindLine,
+  retentionHeldCents,
+  amountDueCents,
 }: {
   kind: PrintKind;
   jobHref: string;
@@ -54,6 +57,9 @@ export function PrintSheet({
   payLines?: Array<{ label: string; value: string }>;
   againstLabel?: string;
   reason?: string;
+  kindLine?: string;
+  retentionHeldCents?: number;
+  amountDueCents?: number;
 }) {
   const title = printDocumentTitle({ kind, docNumber, status, gstRegistered });
   const abnOk = isValidAbn(abn);
@@ -105,6 +111,7 @@ export function PrintSheet({
             {againstLabel ? (
               <p className="mt-2 text-sm text-[#1b2430]">Against {againstLabel}</p>
             ) : null}
+            {kindLine ? <p className="mt-2 text-sm text-[#1b2430]">{kindLine}</p> : null}
             {reason ? <p className="mt-1 text-sm text-[#4b5563]">Reason: {reason}</p> : null}
           </div>
         </section>
@@ -159,6 +166,18 @@ export function PrintSheet({
             <dt>Total</dt>
             <dd className="font-mono">{formatAudFromCents(totals.totalCents)}</dd>
           </div>
+          {kind === "invoice" && retentionHeldCents !== undefined && retentionHeldCents > 0 ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-[#4b5563]">Retention held</dt>
+              <dd className="font-mono">{formatAudFromCents(retentionHeldCents)}</dd>
+            </div>
+          ) : null}
+          {kind === "invoice" && amountDueCents !== undefined && retentionHeldCents ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-[#4b5563]">Amount due</dt>
+              <dd className="font-mono">{formatAudFromCents(amountDueCents)}</dd>
+            </div>
+          ) : null}
           {kind === "quote" && validUntil ? (
             <div className="flex justify-between gap-4">
               <dt className="text-[#4b5563]">Valid until</dt>
@@ -226,8 +245,8 @@ export function PrintSheet({
               ? "This credit note reduces the amount owing on the named invoice. This is not tax advice and does not lodge a BAS. Amounts are AUD. Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%."
               : "This credit note reduces the amount owing on the named invoice. This organisation is not GST registered, so GST is not charged. This is not tax advice and does not lodge a BAS. Amounts are AUD."
             : gstRegistered
-              ? "This is not tax advice and does not lodge a BAS. Amounts are AUD. Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%."
-              : "This organisation is not GST registered, so GST is not charged. This is not tax advice and does not lodge a BAS. Amounts are AUD."}
+              ? "This is not tax advice and does not lodge a BAS. Amounts are AUD. Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%. Retention is a hold of billed amounts, not a GST adjustment."
+              : "This organisation is not GST registered, so GST is not charged. This is not tax advice and does not lodge a BAS. Amounts are AUD. Retention is a hold of billed amounts."}
         </p>
       </article>
     </div>
