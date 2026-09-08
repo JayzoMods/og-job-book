@@ -31,6 +31,7 @@ if (!db) {
   process.exit(1);
 }
 
-await seedDemo(db);
-console.log("Seeded Harbourline Inspections demo org");
-process.exit(0);
+void seedDemo(db).then(() => {
+  console.log("Seeded Harbourline Inspections demo org");
+  process.exit(0);
+});
