@@ -219,7 +219,7 @@ export async function createQuoteAction(formData: FormData) {
   }
   try {
     await db.transaction(async (tx) => {
-      const docNumber = await allocateDocNumber(tx as AppDb, job.orgId, "quote");
+      const docNumber = await allocateDocNumber(tx, job.orgId, "quote");
       const [quote] = await tx
         .insert(quotes)
         .values({ jobId, docNumber, status: "draft", validUntil })
@@ -319,7 +319,7 @@ export async function issueInvoiceAction(formData: FormData) {
   const dueDate = dueDateFromTerms(todayIsoSydney(), termsDays);
   try {
     await db.transaction(async (tx) => {
-      const docNumber = await allocateDocNumber(tx as AppDb, job.orgId, "invoice");
+      const docNumber = await allocateDocNumber(tx, job.orgId, "invoice");
       const [invoice] = await tx
         .insert(invoices)
         .values({
@@ -532,7 +532,7 @@ export async function issueCreditNoteAction(formData: FormData) {
   }
   try {
     await db.transaction(async (tx) => {
-      const docNumber = await allocateDocNumber(tx as AppDb, job.orgId, "credit");
+      const docNumber = await allocateDocNumber(tx, job.orgId, "credit");
       const [note] = await tx
         .insert(creditNotes)
         .values({

@@ -3,8 +3,10 @@ import { formatDocNumber } from "../lib/ledger/numbers";
 import type { AppDb } from "./client";
 import { orgs } from "./schema";
 
+type AppTx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
 export async function allocateDocNumber(
-  db: AppDb,
+  db: AppDb | AppTx,
   orgId: string,
   kind: "quote" | "invoice" | "credit",
 ): Promise<string> {
