@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: jobbook
+      POSTGRES_PASSWORD: jobbook
+      POSTGRES_DB: jobbook
+    ports:
+      - "5433:5432"
+    volumes:
+      - jobbook_pg:/var/lib/postgresql/data
+      - ./drizzle/0000_init.sql:/docker-entrypoint-initdb.d/0000_init.sql:ro
+
+volumes:
+  jobbook_pg:

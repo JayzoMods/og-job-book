@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="AU Job Book">
+  <rect width="32" height="32" rx="6" fill="#1e3a5f"/>
+  <path fill="#f7f4ee" d="M8 7h16v18H8z"/>
+  <path fill="#1e3a5f" d="M11 11h10v1.4H11zm0 4h10v1.4H11zm0 4h7v1.4h-7z"/>
+</svg>
