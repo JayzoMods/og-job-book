@@ -2,7 +2,7 @@
 
 Job → quote → invoice → record payment, with Australian ABN checksum and GST totals on the documents. Public portfolio web app for [Jayden O'Grady](https://ogdigitaldesigns.com.au) / OG Digital Designs.
 
-**Live demo (no login):** not deployed yet. Run locally and click **Load demo**.
+**Live demo (no login):** [https://og-job-book.vercel.app](https://og-job-book.vercel.app) — click **Load demo**. Source: [github.com/JayzoMods/og-job-book](https://github.com/JayzoMods/og-job-book).
 
 This is **not** ServiceM8, not a BAS agent, not tax advice, and it does not lodge with the ATO.
 
