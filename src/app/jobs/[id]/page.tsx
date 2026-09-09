@@ -5,6 +5,7 @@ import {
   cancelJobAction,
   declineQuoteAction,
   deleteDraftQuoteAction,
+  duplicateJobAction,
   issueClaimAction,
   issueCreditNoteAction,
   issueInvoiceAction,
@@ -12,11 +13,18 @@ import {
   issueVariationAction,
   recordPaymentAction,
   replaceQuoteLinesAction,
+  reviseQuoteAction,
+  appendRateItemsAction,
+  saveJobNotesAction,
+  saveRecurringAction,
   sendQuoteAction,
+  setRecurringStatusAction,
   voidCreditNoteAction,
   voidInvoiceAction,
+  deleteRecurringAction,
+  issueRecurringAction,
 } from "@/app/actions";
-import { DocumentPanel, LineFields } from "@/components/document-panel";
+import { DocumentPanel, LineFields, MarkupNote } from "@/components/document-panel";
 import { QuoteCompose } from "@/components/quote-compose";
 import { extractAiConfigured } from "@/lib/extract/lines";
 import { loadDb } from "@/db/ready";
@@ -24,7 +32,9 @@ import {
   getInvoicesForJob,
   getJob,
   getQuotesForJob,
+  getRecurringForJob,
   isUuid,
+  listRateItems,
 } from "@/db/queries";
 import { formatAudFromCents } from "@/lib/ledger/money";
 import { invoiceSettlement } from "@/lib/ledger/credit";
@@ -36,9 +46,23 @@ import {
   parseInvoiceKind,
   remainingContractCents,
 } from "@/lib/ledger/claim";
+import {
+  canReviseQuote,
+  hasDraftRevision,
+  liveInvoiceCountOnQuote,
+  quoteRevisionLabel,
+} from "@/lib/ledger/revise";
+import {
+  canIssueRecurring,
+  parseRecurringFrequency,
+  parseRecurringStatus,
+  recurringFrequencyLabel,
+  recurringIsDue,
+  RECURRING_FREQUENCIES,
+} from "@/lib/ledger/recurring";
 import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { formatIsoDateAu } from "@/lib/ledger/print";
-import { todayIsoSydney } from "@/lib/ledger/tax";
+import { todayIsoSydney, lineUnitLabel, parseLineUnit } from "@/lib/ledger/tax";
 import {
   defaultQuoteValidUntil,
   invoiceDocumentStatus,
@@ -61,6 +85,14 @@ const ERRORS: Record<string, string> = {
     "Deposit and progress claims need a whole percent from 1 to 100 and cannot exceed what is left on the quote.",
   variation: "A variation needs at least one complete line.",
   retention: "Retention release cannot exceed the amount held.",
+  notes: "Job notes cannot be longer than 2,000 characters.",
+  revise:
+    "This quote cannot be revised. Drafts are edited in place. Accepted quotes with invoices stay as they are. Only one draft revision can be open at a time.",
+  job: "Could not duplicate this job.",
+  rate: "Tick at least one rate to drop onto a draft quote.",
+  cost: "Cost is optional. If you enter one, it must be a positive amount. It is not printed.",
+  recurring:
+    "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue is manual. Cancelled jobs cannot take a new issue.",
 };
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">) {
@@ -86,9 +118,11 @@ export default async function JobPage({
   if (!job || !org) {
     notFound();
   }
-  const [quoteList, invoiceList] = await Promise.all([
+  const [quoteList, invoiceList, rateItems, recurringList] = await Promise.all([
     getQuotesForJob(db, id),
     getInvoicesForJob(db, id),
+    listRateItems(db, org.id),
+    getRecurringForJob(db, id),
   ]);
   const errorKey = typeof query.error === "string" ? query.error : "";
   const error = ERRORS[errorKey];
@@ -116,9 +150,41 @@ export default async function JobPage({
             <p className="mt-1 text-muted">
               {job.suburb} · {job.description}
             </p>
+            {job.customerPhone ? (
+              <p className="mt-2 text-sm text-muted">Phone {job.customerPhone}</p>
+            ) : null}
+            {job.customerEmail ? (
+              <p className="text-sm text-muted">Email {job.customerEmail}</p>
+            ) : null}
+            <p className="mt-2 text-sm text-muted">
+              Shown as given. This app does not call, SMS, or send email.
+            </p>
+            {job.duplicatedFromJobId ? (
+              <p className="mt-2 text-sm text-muted">
+                Duplicated from an earlier job.{" "}
+                <Link
+                  href={`/jobs/${job.duplicatedFromJobId}`}
+                  className="text-navy underline-offset-2 hover:underline"
+                >
+                  Open original
+                </Link>
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="pill">{job.status}</span>
+            <Link
+              href={`/customers/${job.customerId}/statement/print`}
+              className="btn btn-ghost"
+            >
+              Print statement
+            </Link>
+            <form action={duplicateJobAction}>
+              <input type="hidden" name="jobId" value={job.id} />
+              <button type="submit" className="btn btn-ghost">
+                Duplicate job
+              </button>
+            </form>
             {job.status !== "paid" && job.status !== "cancelled" ? (
               <form action={cancelJobAction}>
                 <input type="hidden" name="jobId" value={job.id} />
@@ -136,6 +202,204 @@ export default async function JobPage({
           {error}
         </p>
       ) : null}
+
+      <section className="surface p-6">
+        <h2 className="font-display text-2xl">Job notes</h2>
+        <p className="mt-2 text-sm text-muted">
+          Internal only. Not printed on the quote or invoice.
+        </p>
+        <form action={saveJobNotesAction} className="mt-4 grid gap-3">
+          <input type="hidden" name="jobId" value={job.id} />
+          <label className="text-sm">
+            Notes
+            <textarea
+              className="field mt-1 min-h-24"
+              name="notes"
+              maxLength={2000}
+              defaultValue={job.notes}
+            />
+          </label>
+          <div>
+            <button type="submit" className="btn btn-ghost">
+              Save notes
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-display text-2xl">Recurring invoices</h2>
+        <p className="text-sm text-muted">
+          A line template you issue again on a cadence. Not a booking calendar. Issue is a
+          click — this app does not send email. Changing the template does not rewrite
+          invoices already issued. Retention is not held on these invoices.
+        </p>
+        {recurringList.map((template) => {
+          const cadence = parseRecurringFrequency(template.frequency);
+          const issuable = canIssueRecurring({
+            status: template.status,
+            frequency: template.frequency,
+            nextIssueOn: template.nextIssueOn,
+            endOn: template.endOn,
+            hasLines: template.lines.length > 0,
+            jobStatus: job.status,
+          });
+          const due = recurringIsDue(
+            {
+              status: template.status,
+              frequency: template.frequency,
+              nextIssueOn: template.nextIssueOn,
+              endOn: template.endOn,
+              hasLines: template.lines.length > 0,
+              jobStatus: job.status,
+            },
+            today,
+          );
+          const paused = parseRecurringStatus(template.status) === "paused";
+          const statusLabel = paused ? "paused" : due ? "due" : issuable ? "active" : "ended";
+          return (
+            <DocumentPanel
+              key={template.id}
+              title={
+                cadence
+                  ? `${recurringFrequencyLabel(cadence)} · next ${formatIsoDateAu(template.nextIssueOn)}`
+                  : `Recurring · next ${formatIsoDateAu(template.nextIssueOn)}`
+              }
+              status={statusLabel}
+              abn={org.abn}
+              gstRegistered={org.gstRegistered}
+              totals={template.totals}
+              extra={
+                job.status !== "cancelled" ? (
+                  <div className="space-y-3">
+                    {template.endOn ? (
+                      <p className="text-sm text-muted">
+                        Ends {formatIsoDateAu(template.endOn)}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted">No end date</p>
+                    )}
+                    <form action={saveRecurringAction} className="space-y-3">
+                      <input type="hidden" name="jobId" value={job.id} />
+                      <input type="hidden" name="recurringId" value={template.id} />
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <label className="text-sm">
+                          Cadence
+                          <select
+                            className="field mt-1"
+                            name="frequency"
+                            defaultValue={cadence ?? "monthly"}
+                          >
+                            {RECURRING_FREQUENCIES.map((value) => (
+                              <option key={value} value={value}>
+                                {recurringFrequencyLabel(value)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-sm">
+                          Next issue
+                          <input
+                            className="field mt-1"
+                            type="date"
+                            name="nextIssueOn"
+                            required
+                            defaultValue={template.nextIssueOn}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          End date (optional)
+                          <input
+                            className="field mt-1"
+                            type="date"
+                            name="endOn"
+                            defaultValue={template.endOn ?? ""}
+                          />
+                        </label>
+                      </div>
+                      <LineFields lines={template.lines} />
+                      <button type="submit" className="btn btn-ghost">
+                        Save template
+                      </button>
+                    </form>
+                  </div>
+                ) : null
+              }
+            >
+              {issuable ? (
+                <form action={issueRecurringAction}>
+                  <input type="hidden" name="jobId" value={job.id} />
+                  <input type="hidden" name="recurringId" value={template.id} />
+                  <button type="submit" className="btn btn-primary">
+                    {due ? "Issue due invoice" : "Issue next invoice"}
+                  </button>
+                </form>
+              ) : null}
+              {job.status !== "cancelled" ? (
+                <>
+                  <form action={setRecurringStatusAction}>
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <input type="hidden" name="recurringId" value={template.id} />
+                    <input
+                      type="hidden"
+                      name="status"
+                      value={paused ? "active" : "paused"}
+                    />
+                    <button type="submit" className="btn btn-ghost">
+                      {paused ? "Resume" : "Pause"}
+                    </button>
+                  </form>
+                  <form action={deleteRecurringAction}>
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <input type="hidden" name="recurringId" value={template.id} />
+                    <button type="submit" className="btn btn-ghost">
+                      Delete template
+                    </button>
+                  </form>
+                </>
+              ) : null}
+            </DocumentPanel>
+          );
+        })}
+        {job.status !== "cancelled" ? (
+          <form action={saveRecurringAction} className="surface space-y-3 p-5">
+            <input type="hidden" name="jobId" value={job.id} />
+            <p className="text-sm font-semibold">Add a recurring invoice</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="text-sm">
+                Cadence
+                <select className="field mt-1" name="frequency" defaultValue="monthly">
+                  {RECURRING_FREQUENCIES.map((value) => (
+                    <option key={value} value={value}>
+                      {recurringFrequencyLabel(value)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Next issue
+                <input
+                  className="field mt-1"
+                  type="date"
+                  name="nextIssueOn"
+                  required
+                  defaultValue={today}
+                />
+              </label>
+              <label className="text-sm">
+                End date (optional)
+                <input className="field mt-1" type="date" name="endOn" />
+              </label>
+            </div>
+            <LineFields />
+            <button type="submit" className="btn btn-ghost">
+              Save template
+            </button>
+          </form>
+        ) : (
+          <p className="text-muted">This job is cancelled. No new recurring invoices.</p>
+        )}
+      </section>
 
       <section className="space-y-4">
         <h2 className="font-display text-2xl">Quotes</h2>
@@ -160,6 +424,25 @@ export default async function JobPage({
             claimedCentsFromInvoices(invoiceRows, quote.id),
           );
           const held = netRetentionHeldCents(invoiceRows, quote.id);
+          const revisionLabel = quoteRevisionLabel(quote.revisedFromDocNumber);
+          const canRevise = canReviseQuote({
+            jobStatus: job.status,
+            quoteStatus: quote.status,
+            liveInvoiceCount: liveInvoiceCountOnQuote(
+              invoiceList.map((invoice) => ({
+                quoteId: invoice.quoteId,
+                status: invoice.status,
+              })),
+              quote.id,
+            ),
+            hasDraftRevision: hasDraftRevision(
+              quoteList.map((row) => ({
+                revisedFromQuoteId: row.revisedFromQuoteId,
+                status: row.status,
+              })),
+              quote.id,
+            ),
+          });
           return (
           <DocumentPanel
             key={quote.id}
@@ -170,6 +453,15 @@ export default async function JobPage({
             totals={quote.totals}
             extra={
               <div className="space-y-3">
+                <MarkupNote lines={quote.lines} />
+                {revisionLabel ? (
+                  <p className="text-sm">{revisionLabel}</p>
+                ) : null}
+                {quote.status === "superseded" ? (
+                  <p className="text-sm text-muted">
+                    This quote was superseded by a later numbered quote.
+                  </p>
+                ) : null}
                 {quote.status !== "draft" ? (
                   <p className="text-sm">
                     Valid until {formatIsoDateAu(quote.validUntil)}
@@ -283,6 +575,7 @@ export default async function JobPage({
                   </div>
                 ) : null}
                 {quote.status === "draft" && job.status !== "cancelled" ? (
+                <>
                 <form action={replaceQuoteLinesAction} className="space-y-4">
                   <input type="hidden" name="quoteId" value={quote.id} />
                   <input type="hidden" name="jobId" value={job.id} />
@@ -296,11 +589,38 @@ export default async function JobPage({
                       defaultValue={quote.validUntil}
                     />
                   </label>
-                  <LineFields lines={quote.lines} />
+                  <LineFields lines={quote.lines} showCost />
                   <button type="submit" className="btn btn-ghost">
                     Save line changes
                   </button>
                 </form>
+                {rateItems.length > 0 ? (
+                  <form action={appendRateItemsAction} className="space-y-2">
+                    <input type="hidden" name="quoteId" value={quote.id} />
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <p className="text-sm font-semibold">Add from rate card</p>
+                    <ul className="space-y-1">
+                      {rateItems.map((item) => (
+                        <li key={item.id}>
+                          <label className="flex flex-wrap items-center gap-2 text-sm">
+                            <input type="checkbox" name="rateItemId" value={item.id} />
+                            <span>
+                              {item.description} · {formatAudFromCents(item.unitPriceCents)} /{" "}
+                              {lineUnitLabel(parseLineUnit(item.unit))}
+                              {item.unitCostCents
+                                ? ` · cost ${formatAudFromCents(item.unitCostCents)}`
+                                : ""}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                    <button type="submit" className="btn btn-ghost">
+                      Add selected rates
+                    </button>
+                  </form>
+                ) : null}
+                </>
                 ) : null}
               </div>
             }
@@ -347,6 +667,15 @@ export default async function JobPage({
                 </form>
               </>
             ) : null}
+            {canRevise ? (
+              <form action={reviseQuoteAction}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="jobId" value={job.id} />
+                <button type="submit" className="btn btn-ghost">
+                  Revise quote
+                </button>
+              </form>
+            ) : null}
             {quote.status === "accepted" &&
             job.status !== "cancelled" &&
             remaining === quote.totals.totalCents ? (
@@ -367,6 +696,7 @@ export default async function JobPage({
             jobId={job.id}
             extractConfigured={extractAiConfigured()}
             defaultValidUntil={defaultQuoteValidUntil(today)}
+            rateItems={rateItems}
           />
         ) : (
           <p className="text-muted">This job is cancelled. No new quotes.</p>
@@ -377,8 +707,8 @@ export default async function JobPage({
         <h2 className="font-display text-2xl">Invoices and payments</h2>
         {invoiceList.length === 0 ? (
           <p className="text-muted">
-            No invoices yet. Accept a quote, then issue an invoice, deposit, progress
-            claim, or variation.
+            No invoices yet. Accept a quote and issue an invoice, or issue from a
+            recurring template.
           </p>
         ) : null}
         {invoiceList.map((invoice) => {
@@ -457,9 +787,17 @@ export default async function JobPage({
                     {invoice.payments.length > 0 ? (
                       <ul className="text-muted">
                         {invoice.payments.map((payment) => (
-                          <li key={payment.id}>
-                            {payment.paidOn} · {payment.method} ·{" "}
-                            {formatAudFromCents(payment.amountCents)}
+                          <li key={payment.id} className="flex flex-wrap items-center gap-2">
+                            <span>
+                              {payment.paidOn} · {payment.method} ·{" "}
+                              {formatAudFromCents(payment.amountCents)}
+                            </span>
+                            <Link
+                              href={`/jobs/${job.id}/invoices/${invoice.id}/payments/${payment.id}/print`}
+                              className="text-navy underline-offset-2 hover:underline"
+                            >
+                              Print remittance
+                            </Link>
                           </li>
                         ))}
                       </ul>

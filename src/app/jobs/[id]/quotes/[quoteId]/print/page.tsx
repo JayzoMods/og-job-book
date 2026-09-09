@@ -3,6 +3,7 @@ import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
 import { getJob, getQuoteById, isUuid } from "@/db/queries";
 import { formatInstantAu } from "@/lib/ledger/print";
+import { quoteRevisionLabel } from "@/lib/ledger/revise";
 import { quoteDocumentStatus, quoteIsExpired } from "@/lib/ledger/terms";
 import { todayIsoSydney } from "@/lib/ledger/tax";
 
@@ -51,10 +52,19 @@ export default async function PrintQuotePage({
       gstRegistered={state.org.gstRegistered}
       customerName={job.customerName}
       suburb={job.suburb}
+      customerPhone={job.customerPhone}
+      customerEmail={job.customerEmail}
       jobDescription={job.description}
       totals={quote.totals}
       validUntil={quote.validUntil}
-      notice={expired ? "This quote has expired." : undefined}
+      kindLine={quoteRevisionLabel(quote.revisedFromDocNumber) ?? undefined}
+      notice={
+        quote.status === "superseded"
+          ? "This quote was superseded by a later numbered quote."
+          : expired
+            ? "This quote has expired."
+            : undefined
+      }
     />
   );
 }

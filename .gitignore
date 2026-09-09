@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 /.next/
@@ -42,6 +46,9 @@ HANDOFF.md
 
 # vercel
 .vercel
+
+# scratch drizzle-kit generate folder (path of record is drizzle/)
+/drizzle-kit-out/
 
 # typescript
 *.tsbuildinfo

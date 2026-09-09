@@ -4,7 +4,7 @@ import { lineAmountCents } from "../lib/ledger/money";
 import { computeDocument } from "../lib/ledger/tax";
 import { hasInvoicePayDetails, invoicePayDetails, formatBsb } from "../lib/ledger/pay";
 import { invoiceIsOverdue, quoteIsExpired } from "../lib/ledger/terms";
-import { demoSeed } from "./demo-seed";
+import { DEMO_IDS, demoSeed } from "./demo-seed";
 
 describe("demo seed shape", () => {
   it("has a GST-registered org with a valid ABN checksum", () => {
@@ -16,6 +16,42 @@ describe("demo seed shape", () => {
     expect(demoSeed.jobs.length).toBeGreaterThanOrEqual(3);
     const statuses = new Set(demoSeed.jobs.map((job) => job.status));
     expect(statuses.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("gives each demo job a customer and keeps Jordan Walsh on the claims job", () => {
+    expect(demoSeed.customers).toHaveLength(5);
+    const keys = new Set(
+      demoSeed.customers.map((customer) => `${customer.name}|${customer.suburb}`),
+    );
+    expect(keys.size).toBe(5);
+    for (const job of demoSeed.jobs) {
+      expect(demoSeed.customers.some((customer) => customer.id === job.customerId)).toBe(
+        true,
+      );
+    }
+    const jordan = demoSeed.customers.find((customer) => customer.id === DEMO_IDS.customerClaims);
+    expect(jordan).toEqual({
+      id: DEMO_IDS.customerClaims,
+      name: "Jordan Walsh",
+      suburb: "Glebe",
+      phone: "0412 000 333",
+      email: "",
+    });
+  });
+
+  it("pins optional phone and email on customers and notes on jobs without changing Q-0001 money", () => {
+    const tom = demoSeed.customers.find((customer) => customer.id === DEMO_IDS.customerQuoted);
+    expect(tom?.phone).toBe("0412 000 222");
+    expect(tom?.email).toBe("tom.nguyen@example.com");
+    const priya = demoSeed.customers.find((customer) => customer.id === DEMO_IDS.customerPaid);
+    expect(priya?.phone).toBe("");
+    expect(priya?.email).toBe("priya.shah@example.com");
+    const quoted = demoSeed.jobs.find((job) => job.id === DEMO_IDS.jobQuoted);
+    expect(quoted?.notes).toBe("Quote Q-0001 sent. Access via side gate.");
+    const paid = demoSeed.jobs.find((job) => job.id === DEMO_IDS.jobPaid);
+    expect(paid?.notes).toBe("");
+    const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
+    expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
   });
 
   it("has one quote with mixed GST and GST-free lines", () => {
@@ -48,6 +84,7 @@ describe("demo seed shape", () => {
       "Q-0003",
       "Q-0004",
       "Q-0005",
+      "Q-0006",
     ]);
     expect(demoSeed.invoices.map((invoice) => invoice.docNumber)).toEqual([
       "INV-0001",
@@ -55,7 +92,7 @@ describe("demo seed shape", () => {
       "INV-0003",
       "INV-0004",
     ]);
-    expect(demoSeed.org.nextQuoteSeq).toBe(5);
+    expect(demoSeed.org.nextQuoteSeq).toBe(6);
     expect(demoSeed.org.nextInvoiceSeq).toBe(4);
     expect(demoSeed.org.nextCreditSeq).toBe(1);
     expect(demoSeed.creditNotes.map((note) => note.docNumber)).toEqual(["CN-0001"]);
@@ -138,7 +175,9 @@ describe("demo seed shape", () => {
     const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
     expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
     const quote = demoSeed.quotes.find((row) => row.docNumber === "Q-0005");
-    expect(quote?.jobId).toBe(demoSeed.jobs.find((job) => job.customerName === "Jordan Walsh")?.id);
+    expect(quote?.jobId).toBe(
+      demoSeed.jobs.find((job) => job.customerId === DEMO_IDS.customerClaims)?.id,
+    );
     expect(computeDocument(quote!.lines).totalCents).toBe(220000);
     expect(computeDocument(quote!.lines).gstCents).toBe(20000);
     const deposit = demoSeed.invoices.find((invoice) => invoice.docNumber === "INV-0003");
@@ -166,5 +205,80 @@ describe("demo seed shape", () => {
         today: "2026-09-09",
       }),
     ).toBe(false);
+  });
+
+  it("pins a duplicated Samira job and a draft revision of Q-0001 without changing Q-0001 money", () => {
+    const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
+    expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
+    const copy = demoSeed.jobs.find((job) => job.id === DEMO_IDS.jobDuplicate);
+    expect(copy?.customerId).toBe(DEMO_IDS.customerEnquiry);
+    expect(copy?.duplicatedFromJobId).toBe(DEMO_IDS.jobEnquiry);
+    expect(copy?.status).toBe("enquiry");
+    expect(copy?.description).toBe("Roof leak after storms — inspection only");
+    const revision = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0006");
+    expect(revision?.jobId).toBe(DEMO_IDS.jobQuoted);
+    expect(revision?.status).toBe("draft");
+    expect(revision?.revisedFromQuoteId).toBe(DEMO_IDS.quoteMixed);
+    expect(computeDocument(revision!.lines).totalCents).toBe(123200);
+    expect(computeDocument(revision!.lines).gstCents).toBe(11000);
+    expect(mixed?.status).toBe("sent");
+  });
+
+  it("pins optional cost on the rate card and Q-0003 without changing Q-0001 money", () => {
+    const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
+    expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
+    expect(computeDocument(mixed!.lines).gstCents).toBe(11000);
+    expect(mixed!.lines.every((line) => !line.unitCostCents)).toBe(true);
+    const inspection = demoSeed.rateCard.find(
+      (item) => item.id === DEMO_IDS.ratePrePurchase,
+    );
+    expect(inspection?.unitPriceCents).toBe(121000);
+    expect(inspection?.unitCostCents).toBe(88000);
+    const hours = demoSeed.rateCard.find((item) => item.id === DEMO_IDS.rateStormHours);
+    expect(hours?.unitCostCents).toBe(8800);
+    const area = demoSeed.rateCard.find((item) => item.id === DEMO_IDS.rateRoofM2);
+    expect(area?.unitCostCents).toBeNull();
+    const draft = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0003");
+    expect(draft?.lines[0]?.unitCostCents).toBe(8800);
+    expect(draft?.lines[1]?.unitCostCents).toBeUndefined();
+    expect(computeDocument(draft!.lines).totalCents).toBe(46200);
+  });
+
+  it("pins statement remaining on Alex and a remittance on Priya without changing Q-0001 money", () => {
+    const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
+    expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
+    expect(computeDocument(mixed!.lines).gstCents).toBe(11000);
+    const unpaid = demoSeed.invoices.find((invoice) => invoice.docNumber === "INV-0002");
+    const credit = demoSeed.creditNotes.find((note) => note.docNumber === "CN-0001");
+    expect(unpaid?.dueDate).toBe("2026-09-01");
+    expect(computeDocument(unpaid!.lines).totalCents).toBe(55000);
+    expect(computeDocument(credit!.lines).totalCents).toBe(11000);
+    const paidInvoice = demoSeed.invoices.find((invoice) => invoice.docNumber === "INV-0001");
+    expect(computeDocument(paidInvoice!.lines).totalCents).toBe(44000);
+    const priyaPay = demoSeed.payments.find((payment) => payment.id === DEMO_IDS.payment);
+    expect(priyaPay?.amountCents).toBe(44000);
+    expect(priyaPay?.paidOn).toBe("2026-08-10");
+  });
+
+  it("pins a yearly recurring template on Priya without changing Q-0001 or INV-0001 money", () => {
+    const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
+    expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
+    expect(computeDocument(mixed!.lines).gstCents).toBe(11000);
+    const paidInvoice = demoSeed.invoices.find((invoice) => invoice.docNumber === "INV-0001");
+    expect(computeDocument(paidInvoice!.lines).totalCents).toBe(44000);
+    expect(paidInvoice?.kind).toBe("standard");
+    expect(demoSeed.org.nextInvoiceSeq).toBe(4);
+    expect(demoSeed.customers).toHaveLength(5);
+    const template = demoSeed.recurringInvoices.find(
+      (row) => row.id === DEMO_IDS.recurringAnnual,
+    );
+    expect(template?.jobId).toBe(DEMO_IDS.jobPaid);
+    expect(template?.frequency).toBe("yearly");
+    expect(template?.nextIssueOn).toBe("2026-09-01");
+    expect(template?.endOn).toBeNull();
+    expect(template?.status).toBe("active");
+    expect(computeDocument(template!.lines).totalCents).toBe(44000);
+    expect(computeDocument(template!.lines).gstCents).toBe(4000);
+    expect(demoSeed.invoices.some((invoice) => invoice.kind === "recurring")).toBe(false);
   });
 });

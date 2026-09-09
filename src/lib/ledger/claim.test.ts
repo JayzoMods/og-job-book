@@ -24,11 +24,12 @@ describe("parseInvoiceKind", () => {
     expect(parseInvoiceKind("refund")).toBe("standard");
   });
 
-  it("accepts the five invoice kinds", () => {
+  it("accepts the six invoice kinds", () => {
     expect(parseInvoiceKind("deposit")).toBe("deposit");
     expect(parseInvoiceKind("PROGRESS")).toBe("progress");
     expect(parseInvoiceKind("variation")).toBe("variation");
     expect(parseInvoiceKind("retention")).toBe("retention");
+    expect(parseInvoiceKind("recurring")).toBe("recurring");
   });
 });
 
@@ -98,12 +99,13 @@ describe("retentionHeldCents", () => {
 });
 
 describe("claimedCentsFromInvoices", () => {
-  it("sums live deposit and progress and ignores void, variation, and retention", () => {
+  it("sums live deposit and progress and ignores void, variation, retention, and recurring", () => {
     const invoices = [
       { quoteId: "q1", status: "paid", kind: "deposit", totalCents: 44000 },
       { quoteId: "q1", status: "void", kind: "progress", totalCents: 88000 },
       { quoteId: "q1", status: "sent", kind: "variation", totalCents: 33000 },
       { quoteId: "q1", status: "sent", kind: "retention", totalCents: 2200 },
+      { quoteId: "q1", status: "sent", kind: "recurring", totalCents: 44000 },
       { quoteId: "q2", status: "sent", kind: "deposit", totalCents: 10000 },
     ];
     expect(claimedCentsFromInvoices(invoices, "q1")).toBe(44000);
@@ -203,5 +205,13 @@ describe("claim copy", () => {
     ).toBe("Variation of Q-0005");
     expect(invoicePanelTitle("INV-0003", "deposit")).toBe("Invoice INV-0003 · Deposit");
     expect(invoicePanelTitle("INV-0001", "standard")).toBe("Invoice INV-0001");
+    expect(
+      invoiceKindSubtitle({
+        kind: "recurring",
+        quoteDocNumber: "",
+        percent: null,
+      }),
+    ).toBe("Recurring");
+    expect(invoicePanelTitle("INV-0005", "recurring")).toBe("Invoice INV-0005 · Recurring");
   });
 });

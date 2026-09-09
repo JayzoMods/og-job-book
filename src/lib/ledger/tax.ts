@@ -29,7 +29,13 @@ export const JOB_STATUSES = [
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
-export const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined"] as const;
+export const QUOTE_STATUSES = [
+  "draft",
+  "sent",
+  "accepted",
+  "declined",
+  "superseded",
+] as const;
 
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 

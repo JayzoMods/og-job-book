@@ -1,22 +1,44 @@
 import Link from "next/link";
 import {
   createJobAction,
+  deleteRateItemAction,
+  issueRecurringAction,
   loadDemoAction,
+  saveCustomerAction,
   saveOrgAction,
+  saveRateItemAction,
 } from "@/app/actions";
 import { OrgAbnLookup } from "@/components/org-abn-lookup";
 import { loadDb } from "@/db/ready";
-import { listJobs } from "@/db/queries";
+import { listCustomers, listJobs, listRateItems, listRecurringForOrg } from "@/db/queries";
 import { formatAbn, isValidAbn } from "@/lib/ledger/abn";
 import { abrLookupConfigured } from "@/lib/ledger/abr";
+import { centsToDollars, formatAudFromCents } from "@/lib/ledger/money";
+import { unitMarkupText } from "@/lib/ledger/markup";
 import { formatBsb } from "@/lib/ledger/pay";
+import { lineUnitLabel, parseLineUnit, todayIsoSydney } from "@/lib/ledger/tax";
 import { PAYMENT_TERMS_OPTIONS, parsePaymentTermsDays, paymentTermsLabel } from "@/lib/ledger/terms";
 import { parseRetentionPercent, RETENTION_PERCENT_OPTIONS } from "@/lib/ledger/claim";
+import { formatIsoDateAu } from "@/lib/ledger/print";
+import {
+  parseRecurringFrequency,
+  recurringFrequencyLabel,
+  recurringIsDue,
+} from "@/lib/ledger/recurring";
 
 const ERRORS: Record<string, string> = {
   db: "Postgres is not connected. Run docker compose up -d, then npm run db:apply.",
   org: "Organisation fields were not valid.",
-  job: "Job fields were not valid. Name, suburb, and description are required.",
+  job: "A job needs a description, and either an existing customer or a name and suburb. Phone, email, and notes are optional. A non-empty email needs an @ and a domain. A non-empty phone needs at least 8 digits.",
+  customer:
+    "Customer name and suburb are required. Name plus suburb must be unique. Phone and email are optional. A non-empty email needs an @ and a domain. A non-empty phone needs at least 8 digits.",
+  rate: "A rate needs a description and a positive unit price. Description plus unit must be unique. Cost is optional; if entered it must be a positive amount.",
+  recurring:
+    "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue is manual.",
+  statement:
+    "Statement dates must be calendar days (YYYY-MM-DD). The from date cannot be after the as-at date.",
+  export:
+    "Pick JSON, CSV, or BAS Check CSV. Dates must be calendar days. The from date cannot be after the as-at date.",
 };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -27,6 +49,23 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const db = state.ok ? state.db : null;
   const org = state.ok ? state.org : null;
   const jobList = db && org ? await listJobs(db, org.id) : [];
+  const customerList = db && org ? await listCustomers(db, org.id) : [];
+  const rateList = db && org ? await listRateItems(db, org.id) : [];
+  const recurringList = db && org ? await listRecurringForOrg(db, org.id) : [];
+  const today = todayIsoSydney();
+  const dueRecurring = recurringList.filter((row) =>
+    recurringIsDue(
+      {
+        status: row.status,
+        frequency: row.frequency,
+        nextIssueOn: row.nextIssueOn,
+        endOn: row.endOn,
+        hasLines: row.lines.length > 0,
+        jobStatus: row.jobStatus,
+      },
+      today,
+    ),
+  );
   const needsSetup = !state.ok;
 
   return (
@@ -210,21 +249,341 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       {db && org ? (
         <>
+          <section className="surface p-6" id="customers">
+            <h2 className="font-display text-2xl">Customers</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              Jobs belong to a customer (name, suburb, optional phone and email).
+              The same customer can have more than one job. Print a statement of
+              account for the customer — not a tax invoice, not a BAS. Job notes are
+              internal and are not printed. Shown as given — this app does not call,
+              SMS, or send email. Not a customer portal.
+            </p>
+            {customerList.length === 0 ? (
+              <p className="mt-3 text-muted">
+                No customers yet. Create a job with a name and suburb.
+              </p>
+            ) : (
+              <ul className="mt-4 grid gap-3">
+                {customerList.map((customer) => (
+                  <li key={customer.id} className="surface p-4">
+                    <form
+                      action={saveCustomerAction}
+                      className="grid gap-3 sm:grid-cols-2"
+                    >
+                      <input type="hidden" name="customerId" value={customer.id} />
+                      <label className="text-sm">
+                        Name
+                        <input
+                          className="field mt-1"
+                          name="name"
+                          required
+                          defaultValue={customer.name}
+                          maxLength={120}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Suburb
+                        <input
+                          className="field mt-1"
+                          name="suburb"
+                          required
+                          defaultValue={customer.suburb}
+                          maxLength={80}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Phone
+                        <input
+                          className="field mt-1"
+                          name="phone"
+                          defaultValue={customer.phone}
+                          maxLength={40}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Email
+                        <input
+                          className="field mt-1"
+                          name="email"
+                          defaultValue={customer.email}
+                          maxLength={80}
+                        />
+                      </label>
+                      <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+                        <p className="text-sm text-muted">
+                          {customer.jobCount === 1
+                            ? "1 job"
+                            : `${customer.jobCount} jobs`}
+                        </p>
+                        <button type="submit" className="btn btn-ghost">
+                          Save customer
+                        </button>
+                      </div>
+                    </form>
+                    <form
+                      method="get"
+                      action={`/customers/${customer.id}/statement/print`}
+                      className="mt-3 grid gap-3 sm:grid-cols-3"
+                    >
+                      <label className="text-sm">
+                        From (optional)
+                        <input className="field mt-1" type="date" name="from" />
+                      </label>
+                      <label className="text-sm">
+                        As at
+                        <input
+                          className="field mt-1"
+                          type="date"
+                          name="asAt"
+                          defaultValue={today}
+                        />
+                      </label>
+                      <div className="flex items-end">
+                        <button type="submit" className="btn btn-ghost w-full">
+                          Print statement
+                        </button>
+                      </div>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="surface p-6" id="export">
+            <h2 className="font-display text-2xl">Export</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              Download the books as JSON or CSV. The BAS Check CSV is sales lines
+              (invoices and credit notes) in BAS Check column order so you can drop
+              the file into that app. This is not a GST risk checker, not a bulk ABR
+              lookup, not Xero, and not a BAS. Job notes and cost are not exported.
+            </p>
+            <form method="get" action="/api/export" className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                From (optional)
+                <input className="field mt-1" type="date" name="from" />
+              </label>
+              <label className="text-sm">
+                As at
+                <input
+                  className="field mt-1"
+                  type="date"
+                  name="asAt"
+                  defaultValue={today}
+                />
+              </label>
+              <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <button type="submit" className="btn btn-ghost" name="format" value="json">
+                  Download JSON
+                </button>
+                <button type="submit" className="btn btn-ghost" name="format" value="csv">
+                  Download CSV
+                </button>
+                <button type="submit" className="btn btn-ghost" name="format" value="bas-check">
+                  Download BAS Check CSV
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="surface p-6">
+            <h2 className="font-display text-2xl">Rate card</h2>
+            <p className="mt-2 text-sm text-muted">
+              Sell prices for this organisation, with optional cost. Markup is (sell − cost) ÷
+              cost. Cost is not printed. Not inventory.
+            </p>
+            {rateList.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">No rates yet.</p>
+            ) : (
+              <ul className="mt-4 grid gap-4">
+                {rateList.map((item) => (
+                  <li key={item.id} className="rounded-xl border border-line p-4">
+                    <form action={saveRateItemAction} className="grid gap-3 sm:grid-cols-2">
+                      <input type="hidden" name="rateItemId" value={item.id} />
+                      <label className="text-sm sm:col-span-2">
+                        Description
+                        <input
+                          className="field mt-1"
+                          name="description"
+                          required
+                          defaultValue={item.description}
+                          maxLength={120}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Unit $
+                        <input
+                          className="field mt-1"
+                          name="unitPrice"
+                          required
+                          defaultValue={centsToDollars(item.unitPriceCents).toFixed(2)}
+                          inputMode="decimal"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Cost $
+                        <input
+                          className="field mt-1"
+                          name="unitCost"
+                          defaultValue={
+                            item.unitCostCents
+                              ? centsToDollars(item.unitCostCents).toFixed(2)
+                              : ""
+                          }
+                          inputMode="decimal"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Unit
+                        <select
+                          className="field mt-1"
+                          name="unit"
+                          defaultValue={parseLineUnit(item.unit)}
+                        >
+                          <option value="each">each</option>
+                          <option value="hours">hours</option>
+                          <option value="m2">m²</option>
+                        </select>
+                      </label>
+                      <label className="text-sm">
+                        Tax
+                        <select className="field mt-1" name="taxCode" defaultValue={item.taxCode}>
+                          <option value="GST">GST</option>
+                          <option value="GST_FREE">GST-free</option>
+                          <option value="BAS_EXCLUDED">BAS excluded</option>
+                          <option value="INPUT_TAXED">Input-taxed</option>
+                        </select>
+                      </label>
+                      <label className="text-sm">
+                        Amount
+                        <select
+                          className="field mt-1"
+                          name="amountKind"
+                          defaultValue={item.amountKind}
+                        >
+                          <option value="inclusive">Incl</option>
+                          <option value="exclusive">Excl</option>
+                        </select>
+                      </label>
+                      <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+                        <p className="text-sm text-muted">
+                          {formatAudFromCents(item.unitPriceCents)} /{" "}
+                          {lineUnitLabel(parseLineUnit(item.unit))}
+                          {unitMarkupText(item.unitPriceCents, item.unitCostCents)
+                            ? ` · ${unitMarkupText(item.unitPriceCents, item.unitCostCents)}`
+                            : ""}
+                        </p>
+                        <button type="submit" className="btn btn-ghost">
+                          Save rate
+                        </button>
+                      </div>
+                    </form>
+                    <form action={deleteRateItemAction} className="mt-2">
+                      <input type="hidden" name="rateItemId" value={item.id} />
+                      <button type="submit" className="btn btn-ghost">
+                        Delete rate
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form
+              action={saveRateItemAction}
+              className="mt-6 grid gap-3 rounded-xl border border-dashed border-line p-4 sm:grid-cols-2"
+            >
+              <p className="text-sm font-semibold sm:col-span-2">Add a rate</p>
+              <label className="text-sm sm:col-span-2">
+                Description
+                <input className="field mt-1" name="description" required maxLength={120} />
+              </label>
+              <label className="text-sm">
+                Unit $
+                <input className="field mt-1" name="unitPrice" required inputMode="decimal" />
+              </label>
+              <label className="text-sm">
+                Cost $
+                <input className="field mt-1" name="unitCost" inputMode="decimal" />
+              </label>
+              <label className="text-sm">
+                Unit
+                <select className="field mt-1" name="unit" defaultValue="each">
+                  <option value="each">each</option>
+                  <option value="hours">hours</option>
+                  <option value="m2">m²</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                Tax
+                <select className="field mt-1" name="taxCode" defaultValue="GST">
+                  <option value="GST">GST</option>
+                  <option value="GST_FREE">GST-free</option>
+                  <option value="BAS_EXCLUDED">BAS excluded</option>
+                  <option value="INPUT_TAXED">Input-taxed</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                Amount
+                <select className="field mt-1" name="amountKind" defaultValue="inclusive">
+                  <option value="inclusive">Incl</option>
+                  <option value="exclusive">Excl</option>
+                </select>
+              </label>
+              <div>
+                <button type="submit" className="btn btn-ghost">
+                  Add rate
+                </button>
+              </div>
+            </form>
+          </section>
+
           <section className="surface p-6">
             <h2 className="font-display text-2xl">Create a job</h2>
-            <form action={createJobAction} className="mt-4 grid gap-3 sm:grid-cols-2">
+            <form
+              id="create-job"
+              action={createJobAction}
+              className="mt-4 grid gap-3 sm:grid-cols-2"
+            >
+              <label className="text-sm sm:col-span-2">
+                Existing customer
+                <select className="field mt-1" name="customerId" defaultValue="">
+                  <option value="">New customer — type name and suburb below</option>
+                  {customerList.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name} — {customer.suburb}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="text-sm">
                 Customer name
-                <input className="field mt-1" name="customerName" required />
+                <input className="field mt-1" name="customerName" maxLength={120} />
               </label>
               <label className="text-sm">
                 Suburb
-                <input className="field mt-1" name="suburb" required />
+                <input className="field mt-1" name="suburb" maxLength={80} />
+              </label>
+              <label className="text-sm">
+                Phone
+                <input className="field mt-1" name="phone" maxLength={40} />
+              </label>
+              <label className="text-sm">
+                Email
+                <input className="field mt-1" name="email" maxLength={80} />
               </label>
               <label className="text-sm sm:col-span-2">
                 Description
                 <textarea className="field mt-1 min-h-20" name="description" required />
               </label>
+              <label className="text-sm sm:col-span-2">
+                Job notes
+                <textarea className="field mt-1 min-h-20" name="notes" maxLength={2000} />
+              </label>
+              <p className="text-sm text-muted sm:col-span-2">
+                Pick an existing customer, or leave that blank and type a name and
+                suburb. Phone and email on this form are saved only when creating a
+                new customer. Job notes are internal and are not printed.
+              </p>
               <div>
                 <button type="submit" className="btn btn-primary">
                   Create job
@@ -234,6 +593,48 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </section>
 
           <section>
+            {dueRecurring.length > 0 ? (
+              <section className="mb-8">
+                <h2 className="font-display text-2xl">Due recurring invoices</h2>
+                <p className="mt-2 text-sm text-muted">
+                  Issue is manual. This is not a booking calendar and the invoice is not
+                  emailed.
+                </p>
+                <ul className="mt-4 grid gap-3">
+                  {dueRecurring.map((row) => {
+                    const cadence = parseRecurringFrequency(row.frequency);
+                    return (
+                      <li
+                        key={row.id}
+                        className="surface flex flex-wrap items-center justify-between gap-3 p-4"
+                      >
+                        <div>
+                          <p className="font-semibold">{row.customerName}</p>
+                          <p className="text-sm text-muted">
+                            {row.suburb} · {row.jobDescription} ·{" "}
+                            {cadence ? recurringFrequencyLabel(cadence) : "Recurring"} ·
+                            next {formatIsoDateAu(row.nextIssueOn)} ·{" "}
+                            {formatAudFromCents(row.totals.totalCents)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link href={`/jobs/${row.jobId}`} className="btn btn-ghost">
+                            Open job
+                          </Link>
+                          <form action={issueRecurringAction}>
+                            <input type="hidden" name="jobId" value={row.jobId} />
+                            <input type="hidden" name="recurringId" value={row.id} />
+                            <button type="submit" className="btn btn-primary">
+                              Issue due invoice
+                            </button>
+                          </form>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ) : null}
             <h2 className="font-display text-2xl">Jobs</h2>
             {jobList.length === 0 ? (
               <p className="mt-3 text-muted">No jobs yet. Load demo or create one.</p>

@@ -23,8 +23,8 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "AU Job Book",
-    template: "%s | AU Job Book",
+    default: "OG Job Book",
+    template: "%s | OG Job Book",
   },
   description:
     "Australian job → quote → invoice ledger with ABN checksum and GST totals. Not ServiceM8. Not tax advice.",

@@ -1,5 +1,5 @@
 {
-  "name": "au-job-book",
+  "name": "og-job-book",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,8 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
-    "db:apply": "node scripts/apply-schema.mjs",
+    "db:check": "drizzle-kit check",
+    "db:apply": "tsx src/db/run-migrate.ts",
     "db:seed": "tsx src/db/run-seed.ts"
   },
   "dependencies": {
@@ -23,6 +25,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.23.1",

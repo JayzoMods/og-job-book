@@ -1,4 +1,4 @@
-# AU Job Book
+# OG Job Book
 
 Job → quote → invoice → record payment, with Australian ABN checksum and GST totals on the documents. Public portfolio web app for [Jayden O'Grady](https://ogdigitaldesigns.com.au) / OG Digital Designs.
 
@@ -9,10 +9,10 @@ This is **not** ServiceM8, not a BAS agent, not tax advice, and it does not lodg
 ## What it does
 
 1. Load a seeded fictional Sydney inspection org (or create jobs yourself).
-2. Add line items on a quote: quantity, unit (each, hours, or m²), unit price, tax code (`GST` | `GST_FREE` | `BAS_EXCLUDED` | `INPUT_TAXED`).
-3. Documents show GST, GST-free, and total. Inclusive GST is 1/11 (nearest cent). Exclusive is 10%. Each GST line shows that proof. If the org is not GST registered, GST is not charged. Quotes are numbered `Q-0001`, invoices `INV-0001`, credit notes `CN-0001`. Quotes have a valid-until date. Invoices use the org payment terms (due on receipt, 7, 14, 30, or 60 days) and flag overdue when unpaid past the due date. A credit note reduces the amount owing on an invoice (same GST line model). It is not a refund and does not lodge a BAS. Deposits and progress claims bill a percent of an accepted quote as one GST-inclusive line. Variations are extra lines. Retention is a hold, not a GST adjustment.
+2. Add line items on a quote: quantity, unit (each, hours, or m²), unit price, tax code (`GST` | `GST_FREE` | `BAS_EXCLUDED` | `INPUT_TAXED`). Jobs belong to a customer (name, suburb, optional phone and email). Job notes are internal and are not printed. This app does not call, SMS, or send email. Duplicate job copies the customer, description, and notes onto a new enquiry. Revise quote copies a sent quote into a new numbered draft. An organisation rate card holds sell prices you can drop onto a quote (qty 1). Optional cost on a rate or quote line shows markup as (sell − cost) ÷ cost. Cost is not printed.
+3. Documents show GST, GST-free, and total. Inclusive GST is 1/11 (nearest cent). Exclusive is 10%. Each GST line shows that proof. If the org is not GST registered, GST is not charged. Quotes are numbered `Q-0001`, invoices `INV-0001`, credit notes `CN-0001`. Quotes have a valid-until date. Invoices use the org payment terms (due on receipt, 7, 14, 30, or 60 days) and flag overdue when unpaid past the due date. A credit note reduces the amount owing on an invoice (same GST line model). It is not a refund and does not lodge a BAS. Deposits and progress claims bill a percent of an accepted quote as one GST-inclusive line. Variations are extra lines. Retention is a hold, not a GST adjustment. Print a customer statement of account (not a tax invoice) and a remittance advice for a recorded payment (not Confirmation of Payee).
 4. ABN on the quote/invoice uses the ABR modulus-89 checksum. Invalid checksums are flagged in plain English. Optional live ABR lookup of the organisation ABN (entity name and GST date) when `ABR_GUID` is set. One ABN, not a bulk list. Checksum still runs when the GUID is unset.
-5. Accept a quote, issue an invoice, record a payment (cash / transfer / card — status only, not Stripe). After an accepted quote you can also issue a deposit, progress claim, variation, or retention release. Retention is a hold of billed amounts, stamped on the invoice. Invoices can show PayID and BSB from the organisation. Display only — not Confirmation of Payee. `POST /api/payment-webhook` is a payload-shape stub only.
+5. Accept a quote, issue an invoice, record a payment (cash / transfer / card — status only, not Stripe). After an accepted quote you can also issue a deposit, progress claim, variation, or retention release. Retention is a hold of billed amounts, stamped on the invoice. Recurring invoices are line templates on a job (weekly, monthly, quarterly, or yearly). Issue is a click — not a calendar, not email. They do not reduce quote remaining and do not hold retention. Invoices can show PayID and BSB from the organisation. Display only — not Confirmation of Payee. `POST /api/payment-webhook` is a payload-shape stub only. Export JSON or CSV of the books. A BAS Check-shaped CSV is sales lines only (not a GST risk checker, not a bulk ABR lookup, not a BAS).
 6. Optional: paste a note or attach a JPEG/PNG/WebP to propose quote lines. Off until `AI_GATEWAY_API_KEY`. The file is not stored. Not a chatbot. Leave that key unset on a public no-login deploy.
 
 ## Run locally
@@ -24,12 +24,16 @@ npm install
 npm run db:apply
 npm run db:seed
 npm test
+npx playwright install chromium
+npm run test:e2e
 npm run dev
 ```
 
 `npm run dev` uses Webpack on this Windows volume because Turbopack has failed to junction `pg` here. Vercel/CI Linux still uses the default `next build`.
 
-Open [http://localhost:3000](http://localhost:3000). Click **Load demo** (safe to click again — it resets the demo data).
+Schema lives in `src/db/schema.ts`. `npm run db:generate` writes drizzle-kit SQL and `drizzle/meta/_journal.json`. `npm run db:apply` applies that journal (same migrator as `drizzle-kit migrate`). `npm run db:check` fails if schema and journal diverge. Empty Postgres (CI, new Docker volume) runs the SQL. A local database that already has tables from the old apply script is recorded on the journal once, then later generates apply as diffs.
+
+Open [http://localhost:3000](http://localhost:3000). Click **Load demo** (safe to click again — it resets the demo data). `npm run test:e2e` needs Postgres (same as Load demo). Locally it reuses `npm run dev` on port 3000 if that server is already up. GitHub Actions runs it against `npm run start` after `npm run build`.
 
 Postgres is on host port **5433** so it can sit beside other local databases on 5432.
 
@@ -37,9 +41,10 @@ Postgres is on host port **5433** so it can sit beside other local databases on 
 
 - Next.js 16 App Router, React 19, TypeScript
 - Tailwind CSS 4
-- Drizzle ORM + PostgreSQL 18
+- Drizzle ORM + drizzle-kit migrations + PostgreSQL 18
 - Vitest on ABN, GST rounding, tax-code flags, seed shape, and ABR JSONP lookup (injected fetch)
-- GitHub Actions: apply schema, seed, test, lint, build
+- Playwright Chromium on the recruiter path (no login, Load demo, GST on the document, job → quote → invoice → record payment)
+- GitHub Actions: drizzle-kit check, apply migrations, seed, test, lint, build, Playwright
 
 ## ABN method
 

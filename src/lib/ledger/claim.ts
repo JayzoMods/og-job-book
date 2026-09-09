@@ -6,6 +6,7 @@ export const INVOICE_KINDS = [
   "progress",
   "variation",
   "retention",
+  "recurring",
 ] as const;
 
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
@@ -46,6 +47,9 @@ export function invoiceKindLabel(kind: InvoiceKind): string {
   }
   if (kind === "retention") {
     return "Retention release";
+  }
+  if (kind === "recurring") {
+    return "Recurring";
   }
   return "Invoice";
 }
@@ -191,6 +195,9 @@ export function invoiceKindSubtitle(input: {
 }): string | undefined {
   if (input.kind === "standard") {
     return undefined;
+  }
+  if (input.kind === "recurring") {
+    return "Recurring";
   }
   if (input.kind === "variation") {
     return `Variation of ${input.quoteDocNumber}`;

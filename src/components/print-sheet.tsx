@@ -19,6 +19,8 @@ export function PrintSheet({
   gstRegistered,
   customerName,
   suburb,
+  customerPhone,
+  customerEmail,
   jobDescription,
   totals,
   dueDate,
@@ -46,6 +48,8 @@ export function PrintSheet({
   gstRegistered: boolean;
   customerName: string;
   suburb: string;
+  customerPhone?: string;
+  customerEmail?: string;
   jobDescription: string;
   totals: DocumentTotals;
   dueDate?: string;
@@ -80,7 +84,7 @@ export function PrintSheet({
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#c9c1b3] pb-4">
           <div>
             <p className="text-xs font-semibold tracking-[0.14em] text-[#8a5420] uppercase">
-              AU Job Book
+              OG Job Book
             </p>
             <h1 className="mt-1 font-display text-3xl text-[#1b2430]">{title}</h1>
             {issuedLabel ? <p className="mt-1 text-sm text-[#4b5563]">{issuedLabel}</p> : null}
@@ -107,6 +111,12 @@ export function PrintSheet({
             <h2 className="text-xs font-semibold tracking-wide text-[#8a5420] uppercase">To</h2>
             <p className="mt-1 font-semibold text-[#1b2430]">{customerName}</p>
             <p className="text-sm text-[#4b5563]">{suburb}</p>
+            {customerPhone ? (
+              <p className="text-sm text-[#4b5563]">Phone {customerPhone}</p>
+            ) : null}
+            {customerEmail ? (
+              <p className="text-sm text-[#4b5563]">Email {customerEmail}</p>
+            ) : null}
             <p className="mt-2 text-sm text-[#1b2430]">{jobDescription}</p>
             {againstLabel ? (
               <p className="mt-2 text-sm text-[#1b2430]">Against {againstLabel}</p>

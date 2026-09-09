@@ -1,5 +1,13 @@
 export type PrintKind = "quote" | "invoice" | "credit";
 
+export function printStatementTitle(): string {
+  return "Statement of account";
+}
+
+export function printRemittanceTitle(): string {
+  return "Remittance advice";
+}
+
 export function printDocumentTitle(input: {
   kind: PrintKind;
   docNumber: string;
@@ -7,9 +15,13 @@ export function printDocumentTitle(input: {
   gstRegistered: boolean;
 }): string {
   if (input.kind === "quote") {
-    return input.status === "draft"
-      ? `Quote ${input.docNumber} (draft)`
-      : `Quote ${input.docNumber}`;
+    if (input.status === "draft") {
+      return `Quote ${input.docNumber} (draft)`;
+    }
+    if (input.status === "superseded") {
+      return `Quote ${input.docNumber} (superseded)`;
+    }
+    return `Quote ${input.docNumber}`;
   }
   if (input.kind === "credit") {
     return input.status === "void"

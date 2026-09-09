@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { formatAbn, isValidAbn } from "@/lib/ledger/abn";
 import { centsToDollars, formatAudFromCents } from "@/lib/ledger/money";
 import { taxCodeLabel, gstProofLabel, formatLineQuantity, parseLineUnit, type ComputedLine, type DocumentTotals } from "@/lib/ledger/tax";
+import { markupNoteText } from "@/lib/ledger/markup";
 
 export function DocumentPanel({
   title,
@@ -113,17 +114,36 @@ export function GstCell({
   );
 }
 
+export function MarkupNote({
+  lines,
+}: {
+  lines: Array<{
+    quantity: number;
+    unitPriceCents: number;
+    unitCostCents?: number | null;
+  }>;
+}) {
+  const text = markupNoteText(lines);
+  if (!text) {
+    return null;
+  }
+  return <p className="mt-3 text-sm text-muted">{text}</p>;
+}
+
 export function LineFields({
   lines = [],
+  showCost = false,
 }: {
   lines?: Array<{
     description: string;
     quantity: number;
     unit?: string;
     unitPriceCents: number;
+    unitCostCents?: number | null;
     taxCode: string;
     amountKind: string;
   }>;
+  showCost?: boolean;
 }) {
   const slotCount = Math.max(4, lines.length + 1);
   return (
@@ -131,6 +151,9 @@ export function LineFields({
       <legend className="text-sm font-semibold">Line items</legend>
       <p className="text-sm text-muted">
         Empty rows are ignored. Qty is each, hours, or m². Unit price is in AUD.
+        {showCost
+          ? " Cost is optional (what you pay). Markup is (sell − cost) ÷ cost. Not printed. Not tax advice."
+          : ""}
       </p>
       {Array.from({ length: slotCount }, (_, slot) => {
         const line = lines[slot];
@@ -169,7 +192,7 @@ export function LineFields({
                 <option value="m2">m²</option>
               </select>
             </label>
-            <label className="sm:col-span-3">
+            <label className="sm:col-span-2">
               <span className="sr-only">Unit price {slot + 1}</span>
               <input
                 className="field"
@@ -179,7 +202,23 @@ export function LineFields({
                 inputMode="decimal"
               />
             </label>
-            <label className="sm:col-span-3">
+            {showCost ? (
+              <label className="sm:col-span-2">
+                <span className="sr-only">Unit cost {slot + 1} (not printed)</span>
+                <input
+                  className="field"
+                  name="line_cost"
+                  placeholder="Cost $"
+                  defaultValue={
+                    line?.unitCostCents
+                      ? centsToDollars(line.unitCostCents).toFixed(2)
+                      : ""
+                  }
+                  inputMode="decimal"
+                />
+              </label>
+            ) : null}
+            <label className={showCost ? "sm:col-span-2" : "sm:col-span-3"}>
               <span className="sr-only">Tax code {slot + 1}</span>
               <select className="field" name="line_tax" defaultValue={line?.taxCode ?? "GST"}>
                 <option value="GST">GST</option>

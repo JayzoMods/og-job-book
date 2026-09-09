@@ -63,7 +63,7 @@ describe("quote expiry", () => {
     ).toBe(false);
   });
 
-  it("does not expire draft, accepted, or declined quotes", () => {
+  it("does not expire draft, accepted, declined, or superseded quotes", () => {
     expect(
       quoteIsExpired({
         status: "draft",
@@ -81,6 +81,13 @@ describe("quote expiry", () => {
     expect(
       quoteIsExpired({
         status: "declined",
+        validUntil: "2026-01-01",
+        today: "2026-09-08",
+      }),
+    ).toBe(false);
+    expect(
+      quoteIsExpired({
+        status: "superseded",
         validUntil: "2026-01-01",
         today: "2026-09-08",
       }),

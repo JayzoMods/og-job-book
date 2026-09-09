@@ -63,6 +63,8 @@ export default async function PrintInvoicePage({
       gstRegistered={state.org.gstRegistered}
       customerName={job.customerName}
       suburb={job.suburb}
+      customerPhone={job.customerPhone}
+      customerEmail={job.customerEmail}
       jobDescription={job.description}
       totals={invoice.totals}
       dueDate={invoice.dueDate}

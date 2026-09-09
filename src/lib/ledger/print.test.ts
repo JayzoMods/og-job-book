@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatIsoDateAu, formatInstantAu, printDocumentTitle } from "./print";
+import {
+  formatIsoDateAu,
+  formatInstantAu,
+  printDocumentTitle,
+  printRemittanceTitle,
+  printStatementTitle,
+} from "./print";
 
 describe("printDocumentTitle", () => {
   it("labels a sent quote with its number", () => {
@@ -13,15 +19,15 @@ describe("printDocumentTitle", () => {
     ).toBe("Quote Q-0001");
   });
 
-  it("marks a draft quote", () => {
+  it("marks a superseded quote", () => {
     expect(
       printDocumentTitle({
         kind: "quote",
-        docNumber: "Q-0003",
-        status: "draft",
+        docNumber: "Q-0001",
+        status: "superseded",
         gstRegistered: true,
       }),
-    ).toBe("Quote Q-0003 (draft)");
+    ).toBe("Quote Q-0001 (superseded)");
   });
 
   it("uses Tax invoice when the org is GST-registered", () => {
@@ -77,6 +83,13 @@ describe("printDocumentTitle", () => {
         gstRegistered: true,
       }),
     ).toBe("Credit note CN-0001 (void)");
+  });
+});
+
+describe("printStatementTitle", () => {
+  it("does not say Tax invoice", () => {
+    expect(printStatementTitle()).toBe("Statement of account");
+    expect(printRemittanceTitle()).toBe("Remittance advice");
   });
 });
 

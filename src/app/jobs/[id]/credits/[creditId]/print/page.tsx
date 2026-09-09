@@ -41,6 +41,8 @@ export default async function PrintCreditNotePage({
       gstRegistered={state.org.gstRegistered}
       customerName={job.customerName}
       suburb={job.suburb}
+      customerPhone={job.customerPhone}
+      customerEmail={job.customerEmail}
       jobDescription={job.description}
       totals={note.totals}
       againstLabel={

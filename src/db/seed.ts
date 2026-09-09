@@ -4,6 +4,7 @@ import type { AppDb } from "./client";
 import {
   creditNoteLines,
   creditNotes,
+  customers,
   invoiceLines,
   invoices,
   jobs,
@@ -11,11 +12,14 @@ import {
   payments,
   quoteLines,
   quotes,
+  rateCardItems,
+  recurringInvoiceLines,
+  recurringInvoices,
 } from "./schema";
 
 export async function seedDemo(db: AppDb): Promise<string> {
   await db.execute(
-    sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, jobs, orgs restart identity cascade`,
+    sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, recurring_invoice_lines, recurring_invoices, jobs, customers, rate_card_items, orgs restart identity cascade`,
   );
 
   await db.insert(orgs).values({
@@ -35,14 +39,26 @@ export async function seedDemo(db: AppDb): Promise<string> {
     nextCreditSeq: demoSeed.org.nextCreditSeq,
   });
 
+  await db.insert(customers).values(
+    demoSeed.customers.map((customer) => ({
+      id: customer.id,
+      orgId: demoSeed.org.id,
+      name: customer.name,
+      suburb: customer.suburb,
+      phone: customer.phone,
+      email: customer.email,
+    })),
+  );
+
   await db.insert(jobs).values(
     demoSeed.jobs.map((job) => ({
       id: job.id,
       orgId: demoSeed.org.id,
-      customerName: job.customerName,
-      suburb: job.suburb,
+      customerId: job.customerId,
       description: job.description,
+      notes: job.notes,
       status: job.status,
+      duplicatedFromJobId: job.duplicatedFromJobId ?? null,
     })),
   );
 
@@ -53,6 +69,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
       docNumber: quote.docNumber,
       status: quote.status,
       validUntil: quote.validUntil,
+      revisedFromQuoteId: quote.revisedFromQuoteId ?? null,
     });
     await db.insert(quoteLines).values(
       quote.lines.map((line) => ({
@@ -62,6 +79,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
         quantity: line.quantity,
         unit: line.unit,
         unitPriceCents: line.unitPriceCents,
+        unitCostCents: line.unitCostCents ?? null,
         taxCode: line.taxCode,
         amountKind: line.amountKind,
         sortOrder: line.sortOrder,
@@ -121,6 +139,44 @@ export async function seedDemo(db: AppDb): Promise<string> {
       note.lines.map((line) => ({
         id: line.id,
         creditNoteId: note.id,
+        description: line.description,
+        quantity: line.quantity,
+        unit: line.unit,
+        unitPriceCents: line.unitPriceCents,
+        taxCode: line.taxCode,
+        amountKind: line.amountKind,
+        sortOrder: line.sortOrder,
+      })),
+    );
+  }
+
+  await db.insert(rateCardItems).values(
+    demoSeed.rateCard.map((item) => ({
+      id: item.id,
+      orgId: demoSeed.org.id,
+      description: item.description,
+      unit: item.unit,
+      unitPriceCents: item.unitPriceCents,
+      unitCostCents: item.unitCostCents,
+      taxCode: item.taxCode,
+      amountKind: item.amountKind,
+      sortOrder: item.sortOrder,
+    })),
+  );
+
+  for (const template of demoSeed.recurringInvoices) {
+    await db.insert(recurringInvoices).values({
+      id: template.id,
+      jobId: template.jobId,
+      frequency: template.frequency,
+      nextIssueOn: template.nextIssueOn,
+      endOn: template.endOn,
+      status: template.status,
+    });
+    await db.insert(recurringInvoiceLines).values(
+      template.lines.map((line) => ({
+        id: line.id,
+        recurringInvoiceId: template.id,
         description: line.description,
         quantity: line.quantity,
         unit: line.unit,

@@ -14,11 +14,18 @@ export const DEMO_IDS = {
   jobPaid: "a0000000-0000-4000-8000-000000000013",
   jobInvoiced: "a0000000-0000-4000-8000-000000000014",
   jobClaims: "a0000000-0000-4000-8000-000000000015",
+  jobDuplicate: "a0000000-0000-4000-8000-000000000016",
+  customerEnquiry: "a0000000-0000-4000-8000-000000000081",
+  customerQuoted: "a0000000-0000-4000-8000-000000000082",
+  customerPaid: "a0000000-0000-4000-8000-000000000083",
+  customerInvoiced: "a0000000-0000-4000-8000-000000000084",
+  customerClaims: "a0000000-0000-4000-8000-000000000085",
   quoteMixed: "a0000000-0000-4000-8000-000000000021",
   quoteAccepted: "a0000000-0000-4000-8000-000000000022",
   quoteDraft: "a0000000-0000-4000-8000-000000000023",
   quoteUnpaid: "a0000000-0000-4000-8000-000000000024",
   quoteClaims: "a0000000-0000-4000-8000-000000000025",
+  quoteRevision: "a0000000-0000-4000-8000-000000000026",
   quoteLineGst: "a0000000-0000-4000-8000-000000000031",
   quoteLineFree: "a0000000-0000-4000-8000-000000000032",
   quoteLinePaid: "a0000000-0000-4000-8000-000000000033",
@@ -26,6 +33,8 @@ export const DEMO_IDS = {
   quoteLineDraftM2: "a0000000-0000-4000-8000-000000000036",
   quoteLineUnpaid: "a0000000-0000-4000-8000-000000000035",
   quoteLineClaims: "a0000000-0000-4000-8000-000000000037",
+  quoteLineRevisionGst: "a0000000-0000-4000-8000-000000000038",
+  quoteLineRevisionFree: "a0000000-0000-4000-8000-000000000039",
   invoice: "a0000000-0000-4000-8000-000000000041",
   invoiceUnpaid: "a0000000-0000-4000-8000-000000000042",
   invoiceDeposit: "a0000000-0000-4000-8000-000000000043",
@@ -38,6 +47,12 @@ export const DEMO_IDS = {
   paymentDeposit: "a0000000-0000-4000-8000-000000000062",
   creditNote: "a0000000-0000-4000-8000-000000000071",
   creditNoteLine: "a0000000-0000-4000-8000-000000000072",
+  ratePrePurchase: "a0000000-0000-4000-8000-000000000091",
+  rateBooklet: "a0000000-0000-4000-8000-000000000092",
+  rateStormHours: "a0000000-0000-4000-8000-000000000093",
+  rateRoofM2: "a0000000-0000-4000-8000-000000000094",
+  recurringAnnual: "a0000000-0000-4000-8000-000000000101",
+  recurringAnnualLine: "a0000000-0000-4000-8000-000000000102",
 } as const;
 
 export type DemoLine = {
@@ -46,6 +61,7 @@ export type DemoLine = {
   quantity: number;
   unit: LineUnit;
   unitPriceCents: number;
+  unitCostCents?: number | null;
   taxCode: TaxCode;
   amountKind: AmountKind;
   sortOrder: number;
@@ -68,12 +84,20 @@ export type DemoSeed = {
     nextInvoiceSeq: number;
     nextCreditSeq: number;
   };
+  customers: Array<{
+    id: string;
+    name: string;
+    suburb: string;
+    phone: string;
+    email: string;
+  }>;
   jobs: Array<{
     id: string;
-    customerName: string;
-    suburb: string;
+    customerId: string;
     description: string;
+    notes: string;
     status: JobStatus;
+    duplicatedFromJobId?: string | null;
   }>;
   quotes: Array<{
     id: string;
@@ -81,6 +105,7 @@ export type DemoSeed = {
     docNumber: string;
     status: QuoteStatus;
     validUntil: string;
+    revisedFromQuoteId?: string | null;
     lines: DemoLine[];
   }>;
   invoices: Array<{
@@ -113,6 +138,25 @@ export type DemoSeed = {
     reason: string;
     lines: DemoLine[];
   }>;
+  rateCard: Array<{
+    id: string;
+    description: string;
+    unit: LineUnit;
+    unitPriceCents: number;
+    unitCostCents: number | null;
+    taxCode: TaxCode;
+    amountKind: AmountKind;
+    sortOrder: number;
+  }>;
+  recurringInvoices: Array<{
+    id: string;
+    jobId: string;
+    frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+    nextIssueOn: string;
+    endOn: string | null;
+    status: "active" | "paused";
+    lines: DemoLine[];
+  }>;
 };
 
 /** Fictional AU inspection business. Not a real client. ABN is the ABR checksum example. */
@@ -129,45 +173,90 @@ export const demoSeed: DemoSeed = {
     accountNumber: "00012345",
     payId: "harbourline@example.com",
     retentionPercent: 5,
-    nextQuoteSeq: 5,
+    nextQuoteSeq: 6,
     nextInvoiceSeq: 4,
     nextCreditSeq: 1,
   },
+  customers: [
+    {
+      id: DEMO_IDS.customerEnquiry,
+      name: "Samira Chen",
+      suburb: "Marrickville",
+      phone: "0412 000 111",
+      email: "",
+    },
+    {
+      id: DEMO_IDS.customerQuoted,
+      name: "Tom Nguyen",
+      suburb: "Randwick",
+      phone: "0412 000 222",
+      email: "tom.nguyen@example.com",
+    },
+    {
+      id: DEMO_IDS.customerPaid,
+      name: "Priya Shah",
+      suburb: "Leichhardt",
+      phone: "",
+      email: "priya.shah@example.com",
+    },
+    {
+      id: DEMO_IDS.customerInvoiced,
+      name: "Alex Moretti",
+      suburb: "Balmain",
+      phone: "02 0000 0000",
+      email: "alex.moretti@example.com",
+    },
+    {
+      id: DEMO_IDS.customerClaims,
+      name: "Jordan Walsh",
+      suburb: "Glebe",
+      phone: "0412 000 333",
+      email: "",
+    },
+  ],
   jobs: [
     {
       id: DEMO_IDS.jobEnquiry,
-      customerName: "Samira Chen",
-      suburb: "Marrickville",
+      customerId: DEMO_IDS.customerEnquiry,
       description: "Roof leak after storms — inspection only",
+      notes: "Called after the storm. Inspection only — no quote yet.",
       status: "enquiry",
     },
     {
       id: DEMO_IDS.jobQuoted,
-      customerName: "Tom Nguyen",
-      suburb: "Randwick",
+      customerId: DEMO_IDS.customerQuoted,
       description: "Pre-purchase inspection, 3-bed terrace",
+      notes: "Quote Q-0001 sent. Access via side gate.",
       status: "quoted",
     },
     {
       id: DEMO_IDS.jobPaid,
-      customerName: "Priya Shah",
-      suburb: "Leichhardt",
+      customerId: DEMO_IDS.customerPaid,
       description: "Annual safety inspection",
+      notes: "",
       status: "paid",
     },
     {
       id: DEMO_IDS.jobInvoiced,
-      customerName: "Alex Moretti",
-      suburb: "Balmain",
+      customerId: DEMO_IDS.customerInvoiced,
       description: "Pest inspection before settlement",
+      notes: "Settlement next month. CN-0001 issued for the extra travel line.",
       status: "invoiced",
     },
     {
       id: DEMO_IDS.jobClaims,
-      customerName: "Jordan Walsh",
-      suburb: "Glebe",
+      customerId: DEMO_IDS.customerClaims,
       description: "Storm rectification — roof sheets and flashing",
+      notes: "Retention 5%. Deposit paid 18 Aug.",
       status: "invoiced",
+    },
+    {
+      id: DEMO_IDS.jobDuplicate,
+      customerId: DEMO_IDS.customerEnquiry,
+      description: "Roof leak after storms — inspection only",
+      notes: "Called after the storm. Inspection only — no quote yet.",
+      status: "enquiry",
+      duplicatedFromJobId: DEMO_IDS.jobEnquiry,
     },
   ],
   quotes: [
@@ -232,6 +321,7 @@ export const demoSeed: DemoSeed = {
           quantity: 2.5,
           unit: "hours",
           unitPriceCents: 13200,
+          unitCostCents: 8800,
           taxCode: "GST",
           amountKind: "inclusive",
           sortOrder: 0,
@@ -283,6 +373,36 @@ export const demoSeed: DemoSeed = {
           taxCode: "GST",
           amountKind: "inclusive",
           sortOrder: 0,
+        },
+      ],
+    },
+    {
+      id: DEMO_IDS.quoteRevision,
+      jobId: DEMO_IDS.jobQuoted,
+      docNumber: "Q-0006",
+      status: "draft",
+      validUntil: "2026-10-09",
+      revisedFromQuoteId: DEMO_IDS.quoteMixed,
+      lines: [
+        {
+          id: DEMO_IDS.quoteLineRevisionGst,
+          description: "Pre-purchase building inspection",
+          quantity: 1,
+          unit: "each",
+          unitPriceCents: 121000,
+          taxCode: "GST",
+          amountKind: "inclusive",
+          sortOrder: 0,
+        },
+        {
+          id: DEMO_IDS.quoteLineRevisionFree,
+          description: "GST-free first-aid training booklet",
+          quantity: 1,
+          unit: "each",
+          unitPriceCents: 2200,
+          taxCode: "GST_FREE",
+          amountKind: "inclusive",
+          sortOrder: 1,
         },
       ],
     },
@@ -420,6 +540,70 @@ export const demoSeed: DemoSeed = {
           quantity: 1,
           unit: "each",
           unitPriceCents: 11000,
+          taxCode: "GST",
+          amountKind: "inclusive",
+          sortOrder: 0,
+        },
+      ],
+    },
+  ],
+  rateCard: [
+    {
+      id: DEMO_IDS.ratePrePurchase,
+      description: "Pre-purchase building inspection",
+      unit: "each",
+      unitPriceCents: 121000,
+      unitCostCents: 88000,
+      taxCode: "GST",
+      amountKind: "inclusive",
+      sortOrder: 0,
+    },
+    {
+      id: DEMO_IDS.rateBooklet,
+      description: "GST-free first-aid training booklet",
+      unit: "each",
+      unitPriceCents: 2200,
+      unitCostCents: 1000,
+      taxCode: "GST_FREE",
+      amountKind: "inclusive",
+      sortOrder: 1,
+    },
+    {
+      id: DEMO_IDS.rateStormHours,
+      description: "Storm inspection",
+      unit: "hours",
+      unitPriceCents: 13200,
+      unitCostCents: 8800,
+      taxCode: "GST",
+      amountKind: "inclusive",
+      sortOrder: 2,
+    },
+    {
+      id: DEMO_IDS.rateRoofM2,
+      description: "Roof area note (measure)",
+      unit: "m2",
+      unitPriceCents: 1100,
+      unitCostCents: null,
+      taxCode: "GST",
+      amountKind: "inclusive",
+      sortOrder: 3,
+    },
+  ],
+  recurringInvoices: [
+    {
+      id: DEMO_IDS.recurringAnnual,
+      jobId: DEMO_IDS.jobPaid,
+      frequency: "yearly",
+      nextIssueOn: "2026-09-01",
+      endOn: null,
+      status: "active",
+      lines: [
+        {
+          id: DEMO_IDS.recurringAnnualLine,
+          description: "Annual safety inspection",
+          quantity: 1,
+          unit: "each",
+          unitPriceCents: 44000,
           taxCode: "GST",
           amountKind: "inclusive",
           sortOrder: 0,

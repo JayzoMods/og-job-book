@@ -4,6 +4,9 @@ import { useActionState } from "react";
 import { createQuoteAction } from "@/app/actions";
 import { extractLinesAction, type ExtractLinesState } from "@/app/extract-actions";
 import { LineFields } from "@/components/document-panel";
+import { formatAudFromCents } from "@/lib/ledger/money";
+import { unitMarkupText } from "@/lib/ledger/markup";
+import { lineUnitLabel, parseLineUnit } from "@/lib/ledger/tax";
 
 const EXTRACT_INITIAL: ExtractLinesState = {
   ok: true,
@@ -17,10 +20,19 @@ export function QuoteCompose({
   jobId,
   extractConfigured,
   defaultValidUntil,
+  rateItems,
 }: {
   jobId: string;
   extractConfigured: boolean;
   defaultValidUntil: string;
+  rateItems: Array<{
+    id: string;
+    description: string;
+    unit: string;
+    unitPriceCents: number;
+    unitCostCents?: number | null;
+    taxCode: string;
+  }>;
 }) {
   const [extract, extractAction, extractPending] = useActionState(
     extractLinesAction,
@@ -78,7 +90,36 @@ export function QuoteCompose({
       ) : null}
       <form action={createQuoteAction} className="mt-4 space-y-4">
         <input type="hidden" name="jobId" value={jobId} />
-        <LineFields key={JSON.stringify(extract.lines)} lines={extract.lines} />
+        {rateItems.length > 0 ? (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold">Rate card</legend>
+            <p className="text-sm text-muted">
+              Tick a rate to drop it onto this quote as qty 1. You can still type extra
+              lines. Cost comes with the rate when set. Not printed.
+            </p>
+            <ul className="space-y-1">
+              {rateItems.map((item) => (
+                <li key={item.id}>
+                  <label className="flex flex-wrap items-center gap-2 text-sm">
+                    <input type="checkbox" name="rateItemId" value={item.id} />
+                    <span>
+                      {item.description} · {formatAudFromCents(item.unitPriceCents)} /{" "}
+                      {lineUnitLabel(parseLineUnit(item.unit))}
+                      {item.unitCostCents
+                        ? ` · ${unitMarkupText(item.unitPriceCents, item.unitCostCents)}`
+                        : ""}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        ) : (
+          <p className="text-sm text-muted">
+            No rates yet. Add a rate card on the home page, then drop items here.
+          </p>
+        )}
+        <LineFields key={JSON.stringify(extract.lines)} lines={extract.lines} showCost />
         <label className="block text-sm">
           Valid until
           <input

@@ -31,8 +31,14 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run db:check
       - run: npm run db:apply
       - run: npm run db:seed
       - run: npm test
       - run: npm run lint
       - run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+      - run: npm run test:e2e

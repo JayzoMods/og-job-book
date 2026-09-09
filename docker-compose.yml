@@ -9,7 +9,6 @@ services:
       - "5433:5432"
     volumes:
       - jobbook_pg:/var/lib/postgresql/data
-      - ./drizzle/0000_init.sql:/docker-entrypoint-initdb.d/0000_init.sql:ro
 
 volumes:
   jobbook_pg:
