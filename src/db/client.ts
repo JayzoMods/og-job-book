@@ -14,6 +14,11 @@ export function databaseUrl(): string | undefined {
   return url ? url : undefined;
 }
 
+/** Neon and sslmode=require need TLS. Local Docker on 5433 does not. */
+export function databaseNeedsSsl(url: string): boolean {
+  return url.includes("sslmode=require") || url.includes("neon.tech");
+}
+
 export function getDb(): AppDb | null {
   const url = databaseUrl();
   if (!url) {
@@ -24,7 +29,7 @@ export function getDb(): AppDb | null {
       connectionString: url,
       max: 1,
       connectionTimeoutMillis: 3000,
-      ssl: url.includes("sslmode=require") ? { rejectUnauthorized: true } : undefined,
+      ssl: databaseNeedsSsl(url) ? { rejectUnauthorized: true } : undefined,
     });
     globalForDb.jobBookDb = drizzle({ client: globalForDb.jobBookPool, schema });
   }

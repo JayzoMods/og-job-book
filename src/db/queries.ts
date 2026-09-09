@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { creditedCentsFromNotes } from "@/lib/ledger/credit";
+import { nextJobStatusFromInvoices } from "@/lib/ledger/claim";
+import { creditedCentsFromNotes, invoiceBalanceCents } from "@/lib/ledger/credit";
 import {
   computeDocument,
   parseAmountKind,
@@ -7,6 +8,7 @@ import {
   parseTaxCode,
   type DocumentTotals,
   type LineInput,
+  type PaymentMethod,
 } from "@/lib/ledger/tax";
 import type { AppDb } from "./client";
 import {
@@ -474,6 +476,50 @@ export async function getInvoicesForJob(
     });
   }
   return result;
+}
+
+export async function syncJobStatus(db: AppDb, jobId: string): Promise<void> {
+  const job = await getJob(db, jobId);
+  if (!job || job.status === "cancelled") {
+    return;
+  }
+  const invoiceList = await getInvoicesForJob(db, jobId);
+  const next = nextJobStatusFromInvoices(invoiceList);
+  if (job.status !== next) {
+    await db.update(jobs).set({ status: next }).where(eq(jobs.id, jobId));
+  }
+}
+
+export async function recordInvoicePayment(
+  db: AppDb,
+  invoice: InvoiceWithTotals,
+  input: { amountCents: number; paidOn: string; method: PaymentMethod },
+): Promise<{ paymentId: string; remainingCents: number; invoiceStatus: string }> {
+  const [row] = await db
+    .insert(payments)
+    .values({
+      invoiceId: invoice.id,
+      amountCents: input.amountCents,
+      paidOn: input.paidOn,
+      method: input.method,
+    })
+    .returning({ id: payments.id });
+  if (!row) {
+    throw new Error("Payment insert failed.");
+  }
+  const remainingCents = invoiceBalanceCents(
+    invoice.totals.totalCents,
+    invoice.paidCents + input.amountCents,
+    invoice.creditedCents,
+    invoice.retentionHeldCents,
+  );
+  let invoiceStatus = invoice.status;
+  if (remainingCents <= 0 && invoice.totals.totalCents > 0) {
+    await db.update(invoices).set({ status: "paid" }).where(eq(invoices.id, invoice.id));
+    invoiceStatus = "paid";
+  }
+  await syncJobStatus(db, invoice.jobId);
+  return { paymentId: row.id, remainingCents, invoiceStatus };
 }
 
 export type JobLedger = {

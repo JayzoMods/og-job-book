@@ -12,7 +12,7 @@ This is **not** ServiceM8, not a BAS agent, not tax advice, and it does not lodg
 2. Add line items on a quote: quantity, unit (each, hours, or m²), unit price, tax code (`GST` | `GST_FREE` | `BAS_EXCLUDED` | `INPUT_TAXED`). Jobs belong to a customer (name, suburb, optional phone and email). Job notes are internal and are not printed. This app does not call, SMS, or send email. Duplicate job copies the customer, description, and notes onto a new enquiry. Revise quote copies a sent quote into a new numbered draft. An organisation rate card holds sell prices you can drop onto a quote (qty 1). Optional cost on a rate or quote line shows markup as (sell − cost) ÷ cost. Cost is not printed.
 3. Documents show GST, GST-free, and total. Inclusive GST is 1/11 (nearest cent). Exclusive is 10%. Each GST line shows that proof. If the org is not GST registered, GST is not charged. Quotes are numbered `Q-0001`, invoices `INV-0001`, credit notes `CN-0001`. Quotes have a valid-until date. Invoices use the org payment terms (due on receipt, 7, 14, 30, or 60 days) and flag overdue when unpaid past the due date. A credit note reduces the amount owing on an invoice (same GST line model). It is not a refund and does not lodge a BAS. Deposits and progress claims bill a percent of an accepted quote as one GST-inclusive line. Variations are extra lines. Retention is a hold, not a GST adjustment. Print a customer statement of account (not a tax invoice) and a remittance advice for a recorded payment (not Confirmation of Payee).
 4. ABN on the quote/invoice uses the ABR modulus-89 checksum. Invalid checksums are flagged in plain English. Optional live ABR lookup of the organisation ABN (entity name and GST date) when `ABR_GUID` is set. One ABN, not a bulk list. Checksum still runs when the GUID is unset.
-5. Accept a quote, issue an invoice, record a payment (cash / transfer / card — status only, not Stripe). After an accepted quote you can also issue a deposit, progress claim, variation, or retention release. Retention is a hold of billed amounts, stamped on the invoice. Recurring invoices are line templates on a job (weekly, monthly, quarterly, or yearly). Issue is a click — not a calendar, not email. They do not reduce quote remaining and do not hold retention. Invoices can show PayID and BSB from the organisation. Display only — not Confirmation of Payee. `POST /api/payment-webhook` is a payload-shape stub only. Export JSON or CSV of the books. A BAS Check-shaped CSV is sales lines only (not a GST risk checker, not a bulk ABR lookup, not a BAS).
+5. Accept a quote, issue an invoice, record a payment (cash / transfer / card — status only, not Stripe). After an accepted quote you can also issue a deposit, progress claim, variation, or retention release. Retention is a hold of billed amounts, stamped on the invoice. Recurring invoices are line templates on a job (weekly, monthly, quarterly, or yearly). Issue is a click — not a calendar, not email. They do not reduce quote remaining and do not hold retention. Invoices can show PayID and BSB from the organisation. Display only — not Confirmation of Payee. `POST /api/payment-webhook` records a payment (same rules as the form). OpenAPI is at `/openapi.yaml`. Export JSON or CSV of the books. A BAS Check-shaped CSV is sales lines only (not a GST risk checker, not a bulk ABR lookup, not a BAS).
 6. Optional: paste a note or attach a JPEG/PNG/WebP to propose quote lines. Off until `AI_GATEWAY_API_KEY`. The file is not stored. Not a chatbot. Leave that key unset on a public no-login deploy.
 
 ## Run locally
@@ -42,9 +42,17 @@ Postgres is on host port **5433** so it can sit beside other local databases on 
 - Next.js 16 App Router, React 19, TypeScript
 - Tailwind CSS 4
 - Drizzle ORM + drizzle-kit migrations + PostgreSQL 18
-- Vitest on ABN, GST rounding, tax-code flags, seed shape, and ABR JSONP lookup (injected fetch)
+- Vitest on ABN, GST rounding, tax-code flags, seed shape, ABR JSONP lookup (injected fetch), and payment-webhook parse
 - Playwright Chromium on the recruiter path (no login, Load demo, GST on the document, job → quote → invoice → record payment)
 - GitHub Actions: drizzle-kit check, apply migrations, seed, test, lint, build, Playwright
+
+## HTTP API
+
+OpenAPI 3.1: [http://localhost:3000/openapi.yaml](http://localhost:3000/openapi.yaml) once the app is running.
+
+`POST /api/payment-webhook` with JSON `{ invoiceId, amountCents, paidOn, method }` records a payment (cash / transfer / card). Same remaining-due maths as the form, including credits and retention held. Not Stripe. Not Confirmation of Payee.
+
+`GET /api/export?format=json|csv|bas-check` downloads the books.
 
 ## ABN method
 

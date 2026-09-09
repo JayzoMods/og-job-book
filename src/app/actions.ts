@@ -18,6 +18,8 @@ import {
   getRecurringById,
   isUuid,
   listRateItems,
+  recordInvoicePayment,
+  syncJobStatus,
 } from "@/db/queries";
 import {
   creditNoteLines,
@@ -27,7 +29,6 @@ import {
   invoices,
   jobs,
   orgs,
-  payments,
   quoteLines,
   quotes,
   rateCardItems,
@@ -55,7 +56,6 @@ import {
   claimLineDescription,
   claimTaxCode,
   netRetentionHeldCents,
-  nextJobStatusFromInvoices,
   parseClaimPercent,
   parseInvoiceKind,
   parseRetentionPercent,
@@ -457,18 +457,6 @@ type IssuedLine = {
   amountKind: string;
   sortOrder: number;
 };
-
-async function syncJobStatus(db: AppDb, jobId: string) {
-  const job = await getJob(db, jobId);
-  if (!job || job.status === "cancelled") {
-    return;
-  }
-  const invoiceList = await getInvoicesForJob(db, jobId);
-  const next = nextJobStatusFromInvoices(invoiceList);
-  if (job.status !== next) {
-    await db.update(jobs).set({ status: next }).where(eq(jobs.id, jobId));
-  }
-}
 
 async function insertIssuedInvoice(
   tx: Parameters<Parameters<AppDb["transaction"]>[0]>[0],
@@ -1085,22 +1073,11 @@ export async function recordPaymentAction(formData: FormData) {
     redirect(`/jobs/${jobId}?error=payment`);
   }
   const amountCents = dollarsToCents(dollars);
-  await db.insert(payments).values({
-    invoiceId: invoice.id,
+  await recordInvoicePayment(db, invoice, {
     amountCents,
     paidOn: parsed.data.paidOn,
     method: parsed.data.method as PaymentMethod,
   });
-  const remainingAfter = invoiceBalanceCents(
-    invoice.totals.totalCents,
-    invoice.paidCents + amountCents,
-    invoice.creditedCents,
-    invoice.retentionHeldCents,
-  );
-  if (remainingAfter <= 0 && invoice.totals.totalCents > 0) {
-    await db.update(invoices).set({ status: "paid" }).where(eq(invoices.id, invoice.id));
-  }
-  await syncJobStatus(db, jobId);
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}`);
 }

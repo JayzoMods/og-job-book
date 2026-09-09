@@ -10,6 +10,7 @@ import {
   parseKitJournal,
   sqlFileHash,
 } from "./kit-migrate";
+import { databaseNeedsSsl } from "./client";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(root, "../..");
@@ -52,7 +53,7 @@ if (!journal) {
   process.exit(1);
 }
 
-const needsSsl = url.includes("sslmode=require") || url.includes("neon.tech");
+const needsSsl = databaseNeedsSsl(url);
 const pool = new Pool({
   connectionString: url,
   max: 1,

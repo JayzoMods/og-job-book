@@ -386,6 +386,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </form>
           </section>
 
+          <section className="surface p-6" id="api">
+            <h2 className="font-display text-2xl">HTTP API</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              <code className="font-mono">POST /api/payment-webhook</code> records a payment
+              on an invoice (same rules as Record payment). Not Stripe. Not Confirmation of
+              Payee. OpenAPI describes this path and the export download.
+            </p>
+            <p className="mt-3">
+              <Link className="text-navy underline-offset-2 hover:underline" href="/openapi.yaml">
+                OpenAPI
+              </Link>
+            </p>
+          </section>
+
           <section className="surface p-6">
             <h2 className="font-display text-2xl">Rate card</h2>
             <p className="mt-2 text-sm text-muted">
