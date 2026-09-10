@@ -4,6 +4,7 @@ import {
   deleteRateItemAction,
   issueRecurringAction,
   loadDemoAction,
+  queueDueRecurringAction,
   saveCustomerAction,
   saveOrgAction,
   saveRateItemAction,
@@ -19,32 +20,45 @@ import { formatBsb } from "@/lib/ledger/pay";
 import { lineUnitLabel, parseLineUnit, todayIsoSydney } from "@/lib/ledger/tax";
 import { PAYMENT_TERMS_OPTIONS, parsePaymentTermsDays, paymentTermsLabel } from "@/lib/ledger/terms";
 import { parseRetentionPercent, RETENTION_PERCENT_OPTIONS } from "@/lib/ledger/claim";
+import { REPORT_TYPE_OPTIONS } from "@/lib/ledger/inspection";
+import { canLoadDemo, clerkAuthConfigured } from "@/lib/ledger/auth";
 import { formatIsoDateAu } from "@/lib/ledger/print";
 import {
   parseRecurringFrequency,
   recurringFrequencyLabel,
   recurringIsDue,
 } from "@/lib/ledger/recurring";
+import { queueConfigured } from "@/lib/ledger/queue";
+import { gstQuarterChoices, parseGstQuarter } from "@/lib/ledger/gst-quarter";
 
 const ERRORS: Record<string, string> = {
   db: "Postgres is not connected. Run docker compose up -d, then npm run db:apply.",
   org: "Organisation fields were not valid.",
-  job: "A job needs a description, and either an existing customer or a name and suburb. Phone, email, and notes are optional. A non-empty email needs an @ and a domain. A non-empty phone needs at least 8 digits.",
+  job: "A job needs a description, and either an existing customer or a name and suburb. Phone, email, notes, and inspection fields are optional. Property is at most 200 characters. A non-empty email needs an @ and a domain. A non-empty phone needs at least 8 digits. Report type must be one of the listed kinds, or none.",
   customer:
     "Customer name and suburb are required. Name plus suburb must be unique. Phone and email are optional. A non-empty email needs an @ and a domain. A non-empty phone needs at least 8 digits.",
   rate: "A rate needs a description and a positive unit price. Description plus unit must be unique. Cost is optional; if entered it must be a positive amount.",
   recurring:
-    "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue is manual.",
+    "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue from the job page is still a click.",
+  queue:
+    "Due invoices are queued with Redis and BullMQ. Off until REDIS_URL is set. Leave it unset on a public no-login deploy. Click Issue due invoice to issue one now. This is not a booking calendar.",
   statement:
     "Statement dates must be calendar days (YYYY-MM-DD). The from date cannot be after the as-at date.",
   export:
     "Pick JSON, CSV, or BAS Check CSV. Dates must be calendar days. The from date cannot be after the as-at date.",
+  gst:
+    "GST quarter must be a calendar quarter (YYYY-MM or a day in that quarter). Empty is this quarter in Australia/Sydney. This report is not a BAS and does not lodge.",
+  auth:
+    "Load demo is off while Clerk is on. It would reset every organisation. Leave Clerk keys unset on a public no-login deploy.",
+  member:
+    "Save the organisation after you sign in. One Clerk user maps to one organisation. Not staff roles.",
 };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const errorKey = typeof params.error === "string" ? params.error : "";
   const error = ERRORS[errorKey];
+  const queued = typeof params.queued === "string" && params.queued === "1";
   const state = await loadDb();
   const db = state.ok ? state.db : null;
   const org = state.ok ? state.org : null;
@@ -53,6 +67,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const rateList = db && org ? await listRateItems(db, org.id) : [];
   const recurringList = db && org ? await listRecurringForOrg(db, org.id) : [];
   const today = todayIsoSydney();
+  const gstQuarter = parseGstQuarter("", today);
+  const quarterChoices = gstQuarterChoices(today);
+  const defaultQuarter = gstQuarter.ok ? gstQuarter.value : "";
+  const authOn = clerkAuthConfigured();
+  const showLoadDemo = canLoadDemo(authOn);
+  const redisOn = queueConfigured();
   const dueRecurring = recurringList.filter((row) =>
     recurringIsDue(
       {
@@ -76,20 +96,35 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           Job, quote, invoice — with ABN and GST on the document.
         </h1>
         <p className="mt-3 max-w-2xl text-muted">
-          Narrow hire-repo for a small AU trade or inspection business. No login. Not
-          ServiceM8, not a BAS agent, and not tax advice. Click Load demo to seed a
-          fictional Sydney inspection org.
+          Narrow hire-repo for a small AU trade or inspection business.
+          {authOn
+            ? " Sign in to open your books. Load demo is off while Clerk is on."
+            : " No login. Click Load demo to seed a fictional Sydney inspection org."}{" "}
+          Not ServiceM8, not a BAS agent, and not tax advice.
         </p>
+        {showLoadDemo ? (
         <form action={loadDemoAction} className="mt-6">
           <button type="submit" className="btn btn-primary">
             Load demo
           </button>
         </form>
+        ) : !org ? (
+          <p className="mt-6 text-sm text-muted">
+            Clerk is on. Save the organisation below for this signed-in user. Load demo
+            stays off so it cannot wipe other orgs.
+          </p>
+        ) : null}
       </section>
 
       {error ? (
         <p className="rounded-xl border border-error/40 bg-foam px-4 py-3 text-sm text-error" role="alert">
           {error}
+        </p>
+      ) : null}
+      {queued ? (
+        <p className="rounded-xl border border-navy/20 bg-foam px-4 py-3 text-sm text-muted">
+          Due invoices were queued on Redis. Issue is one period at a time. This is not
+          a booking calendar.
         </p>
       ) : null}
 
@@ -255,8 +290,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               Jobs belong to a customer (name, suburb, optional phone and email).
               The same customer can have more than one job. Print a statement of
               account for the customer — not a tax invoice, not a BAS. Job notes are
-              internal and are not printed. Shown as given — this app does not call,
-              SMS, or send email. Not a customer portal.
+              internal and are not printed. Shown as given — this app does not call or
+              SMS. Email of a sent quote or live invoice is off until RESEND_API_KEY is
+              set. Pay with card is off until STRIPE_SECRET_KEY is set. Not a customer
+              portal.
             </p>
             {customerList.length === 0 ? (
               <p className="mt-3 text-muted">
@@ -386,12 +423,61 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </form>
           </section>
 
+          <section className="surface p-6" id="gst-quarter">
+            <h2 className="font-display text-2xl">GST quarter</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              Print sales GST for an ATO quarter (Jul–Sep, Oct–Dec, Jan–Mar,
+              Apr–Jun) by invoice date. Credit notes reduce the totals. Quotes,
+              drafts, and void invoices are not included. Retention is a hold, not
+              a GST adjustment. This is not a BAS, not tax advice, and does not
+              lodge.
+            </p>
+            <form
+              method="get"
+              action="/gst-quarter/print"
+              className="mt-4 grid gap-3 sm:grid-cols-3"
+            >
+              <label className="text-sm sm:col-span-2">
+                Quarter
+                <select
+                  className="field mt-1"
+                  name="quarter"
+                  defaultValue={defaultQuarter}
+                >
+                  {quarterChoices.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button type="submit" className="btn btn-ghost w-full">
+                  Print GST quarter
+                </button>
+              </div>
+            </form>
+          </section>
+
           <section className="surface p-6" id="api">
             <h2 className="font-display text-2xl">HTTP API</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
               <code className="font-mono">POST /api/payment-webhook</code> records a payment
-              on an invoice (same rules as Record payment). Not Stripe. Not Confirmation of
-              Payee. OpenAPI describes this path and the export download.
+              on an invoice (same rules as Record payment). Not a live card charge.{" "}
+              <code className="font-mono">POST /api/stripe-checkout</code> starts Stripe
+              Checkout for the amount due now when keys are set.{" "}
+              <code className="font-mono">POST /api/stripe-webhook</code> records that card
+              payment.               <code className="font-mono">POST /api/send-email</code> emails a sent
+              quote or live invoice when Resend is configured.{" "}
+              <code className="font-mono">POST /api/accounting-write</code> posts a live
+              invoice to Xero or MYOB when tokens are set. Credit notes go to Xero only.{" "}
+              <code className="font-mono">POST /api/quote-share</code> mints a share token
+              for a sent quote. Open <code className="font-mono">/q/{"{token}"}</code>.
+              Drafts are not shared.{" "}
+              <code className="font-mono">POST /api/queue-run</code> queues due recurring
+              invoices when Redis is set. Not a booking calendar. Not a customer portal. Not
+              Confirmation of Payee. Not Xero OAuth. OpenAPI describes these paths and the
+              export download.
             </p>
             <p className="mt-3">
               <Link className="text-navy underline-offset-2 hover:underline" href="/openapi.yaml">
@@ -590,13 +676,37 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 <textarea className="field mt-1 min-h-20" name="description" required />
               </label>
               <label className="text-sm sm:col-span-2">
+                Property
+                <input className="field mt-1" name="propertyAddress" maxLength={200} />
+              </label>
+              <label className="text-sm">
+                Vendor
+                <input className="field mt-1" name="vendorName" maxLength={120} />
+              </label>
+              <label className="text-sm">
+                Purchaser
+                <input className="field mt-1" name="purchaserName" maxLength={120} />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                Report type
+                <select className="field mt-1" name="reportType" defaultValue="">
+                  {REPORT_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value || "none"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm sm:col-span-2">
                 Job notes
                 <textarea className="field mt-1 min-h-20" name="notes" maxLength={2000} />
               </label>
               <p className="text-sm text-muted sm:col-span-2">
                 Pick an existing customer, or leave that blank and type a name and
                 suburb. Phone and email on this form are saved only when creating a
-                new customer. Job notes are internal and are not printed.
+                new customer. Inspection fields (property, vendor, purchaser, report
+                type) print on the quote and invoice. Job notes are internal and are
+                not printed. Not a customer portal.
               </p>
               <div>
                 <button type="submit" className="btn btn-primary">
@@ -611,9 +721,21 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <section className="mb-8">
                 <h2 className="font-display text-2xl">Due recurring invoices</h2>
                 <p className="mt-2 text-sm text-muted">
-                  Issue is manual. This is not a booking calendar and the invoice is not
-                  emailed.
+                  Issue one period at a time. This is not a booking calendar. Issuing does
+                  not email the invoice.
                 </p>
+                {!redisOn ? (
+                  <p className="mt-2 text-sm text-muted">
+                    Queue is off on this deploy (
+                    <code className="font-mono">REDIS_URL</code> unset). Leave it unset on
+                    a public no-login site. Click Issue due invoice to issue one now.
+                  </p>
+                ) : null}
+                <form action={queueDueRecurringAction} className="mt-3">
+                  <button type="submit" className="btn btn-ghost">
+                    Queue due invoices
+                  </button>
+                </form>
                 <ul className="mt-4 grid gap-3">
                   {dueRecurring.map((row) => {
                     const cadence = parseRecurringFrequency(row.frequency);

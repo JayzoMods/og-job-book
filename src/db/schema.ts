@@ -31,6 +31,21 @@ export const orgs = pgTable("orgs", {
     .notNull(),
 });
 
+export const orgMembers = pgTable(
+  "org_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("org_members_clerk_user_id_key").on(table.clerkUserId)],
+);
+
 export const customers = pgTable(
   "customers",
   {
@@ -65,6 +80,10 @@ export const jobs = pgTable("jobs", {
     .references(() => customers.id),
   description: text("description").notNull(),
   notes: text("notes").notNull().default(""),
+  propertyAddress: text("property_address").notNull().default(""),
+  vendorName: text("vendor_name").notNull().default(""),
+  purchaserName: text("purchaser_name").notNull().default(""),
+  reportType: text("report_type").notNull().default(""),
   status: text("status").notNull(),
   duplicatedFromJobId: uuid("duplicated_from_job_id").references(
     (): AnyPgColumn => jobs.id,
@@ -75,22 +94,27 @@ export const jobs = pgTable("jobs", {
     .notNull(),
 });
 
-export const quotes = pgTable("quotes", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  jobId: uuid("job_id")
-    .notNull()
-    .references(() => jobs.id, { onDelete: "cascade" }),
-  docNumber: text("doc_number").notNull(),
-  status: text("status").notNull(),
-  validUntil: date("valid_until", { mode: "string" }).notNull(),
-  revisedFromQuoteId: uuid("revised_from_quote_id").references(
-    (): AnyPgColumn => quotes.id,
-    { onDelete: "set null" },
-  ),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    docNumber: text("doc_number").notNull(),
+    status: text("status").notNull(),
+    validUntil: date("valid_until", { mode: "string" }).notNull(),
+    revisedFromQuoteId: uuid("revised_from_quote_id").references(
+      (): AnyPgColumn => quotes.id,
+      { onDelete: "set null" },
+    ),
+    shareToken: text("share_token"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("quotes_share_token_key").on(table.shareToken)],
+);
 
 export const quoteLines = pgTable("quote_lines", {
   id: uuid("id").defaultRandom().primaryKey(),

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { loadDb } from "@/db/ready";
+import { currentTenantGate, loadDb } from "@/db/ready";
 import { getLedgerForOrg, listCustomers, type JobLedger } from "@/db/queries";
 import {
   creditExportRows,
@@ -197,6 +197,10 @@ function ledgerJson(
       suburb: job.suburb,
       description: job.description,
       status: job.status,
+      propertyAddress: job.propertyAddress,
+      vendorName: job.vendorName,
+      purchaserName: job.purchaserName,
+      reportType: job.reportType,
     })),
     quotes,
     invoices,
@@ -222,6 +226,9 @@ export async function GET(request: Request) {
   const state = await loadDb();
   if (!state.ok) {
     redirect("/?error=db");
+  }
+  if (currentTenantGate(state) === "unauthenticated") {
+    redirect("/sign-in");
   }
   if (!state.org) {
     redirect("/?error=org");

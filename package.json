@@ -13,11 +13,15 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:apply": "tsx src/db/run-migrate.ts",
-    "db:seed": "tsx src/db/run-seed.ts"
+    "db:seed": "tsx src/db/run-seed.ts",
+    "queue:worker": "tsx src/queue/worker.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.9.1",
     "ai": "^7.0.93",
+    "bullmq": "^6.3.4",
     "drizzle-orm": "^0.45.2",
+    "ioredis": "^6.0.0",
     "next": "16.3.4",
     "pg": "^8.23.0",
     "react": "19.2.8",

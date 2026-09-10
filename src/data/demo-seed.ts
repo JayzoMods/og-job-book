@@ -26,6 +26,10 @@ export const DEMO_IDS = {
   quoteUnpaid: "a0000000-0000-4000-8000-000000000024",
   quoteClaims: "a0000000-0000-4000-8000-000000000025",
   quoteRevision: "a0000000-0000-4000-8000-000000000026",
+  quoteMixedShare: "q0001ShareDemoHarbourlineInspections00001xx",
+  quoteAcceptedShare: "q0002ShareDemoHarbourlineInspections00001xx",
+  quoteUnpaidShare: "q0004ShareDemoHarbourlineInspections00001xx",
+  quoteClaimsShare: "q0005ShareDemoHarbourlineInspections00001xx",
   quoteLineGst: "a0000000-0000-4000-8000-000000000031",
   quoteLineFree: "a0000000-0000-4000-8000-000000000032",
   quoteLinePaid: "a0000000-0000-4000-8000-000000000033",
@@ -96,6 +100,10 @@ export type DemoSeed = {
     customerId: string;
     description: string;
     notes: string;
+    propertyAddress: string;
+    vendorName: string;
+    purchaserName: string;
+    reportType: string;
     status: JobStatus;
     duplicatedFromJobId?: string | null;
   }>;
@@ -106,6 +114,7 @@ export type DemoSeed = {
     status: QuoteStatus;
     validUntil: string;
     revisedFromQuoteId?: string | null;
+    shareToken?: string | null;
     lines: DemoLine[];
   }>;
   invoices: Array<{
@@ -220,6 +229,10 @@ export const demoSeed: DemoSeed = {
       customerId: DEMO_IDS.customerEnquiry,
       description: "Roof leak after storms — inspection only",
       notes: "Called after the storm. Inspection only — no quote yet.",
+      propertyAddress: "22 Illawarra Road, Marrickville NSW 2204",
+      vendorName: "",
+      purchaserName: "Samira Chen",
+      reportType: "roof",
       status: "enquiry",
     },
     {
@@ -227,6 +240,10 @@ export const demoSeed: DemoSeed = {
       customerId: DEMO_IDS.customerQuoted,
       description: "Pre-purchase inspection, 3-bed terrace",
       notes: "Quote Q-0001 sent. Access via side gate.",
+      propertyAddress: "18 Blenheim Street, Randwick NSW 2031",
+      vendorName: "Harper Ellis",
+      purchaserName: "Tom Nguyen",
+      reportType: "pre_purchase",
       status: "quoted",
     },
     {
@@ -234,6 +251,10 @@ export const demoSeed: DemoSeed = {
       customerId: DEMO_IDS.customerPaid,
       description: "Annual safety inspection",
       notes: "",
+      propertyAddress: "7 Flood Street, Leichhardt NSW 2040",
+      vendorName: "",
+      purchaserName: "",
+      reportType: "safety",
       status: "paid",
     },
     {
@@ -241,6 +262,10 @@ export const demoSeed: DemoSeed = {
       customerId: DEMO_IDS.customerInvoiced,
       description: "Pest inspection before settlement",
       notes: "Settlement next month. CN-0001 issued for the extra travel line.",
+      propertyAddress: "42 Darling Street, Balmain NSW 2041",
+      vendorName: "Kim Ortega",
+      purchaserName: "Alex Moretti",
+      reportType: "pest",
       status: "invoiced",
     },
     {
@@ -248,6 +273,10 @@ export const demoSeed: DemoSeed = {
       customerId: DEMO_IDS.customerClaims,
       description: "Storm rectification — roof sheets and flashing",
       notes: "Retention 5%. Deposit paid 18 Aug.",
+      propertyAddress: "9 St Johns Road, Glebe NSW 2037",
+      vendorName: "",
+      purchaserName: "Jordan Walsh",
+      reportType: "storm",
       status: "invoiced",
     },
     {
@@ -255,6 +284,10 @@ export const demoSeed: DemoSeed = {
       customerId: DEMO_IDS.customerEnquiry,
       description: "Roof leak after storms — inspection only",
       notes: "Called after the storm. Inspection only — no quote yet.",
+      propertyAddress: "22 Illawarra Road, Marrickville NSW 2204",
+      vendorName: "",
+      purchaserName: "Samira Chen",
+      reportType: "roof",
       status: "enquiry",
       duplicatedFromJobId: DEMO_IDS.jobEnquiry,
     },
@@ -266,6 +299,7 @@ export const demoSeed: DemoSeed = {
       docNumber: "Q-0001",
       status: "sent",
       validUntil: "2026-09-01",
+      shareToken: DEMO_IDS.quoteMixedShare,
       lines: [
         {
           id: DEMO_IDS.quoteLineGst,
@@ -295,6 +329,7 @@ export const demoSeed: DemoSeed = {
       docNumber: "Q-0002",
       status: "accepted",
       validUntil: "2026-08-20",
+      shareToken: DEMO_IDS.quoteAcceptedShare,
       lines: [
         {
           id: DEMO_IDS.quoteLinePaid,
@@ -344,6 +379,7 @@ export const demoSeed: DemoSeed = {
       docNumber: "Q-0004",
       status: "accepted",
       validUntil: "2026-09-15",
+      shareToken: DEMO_IDS.quoteUnpaidShare,
       lines: [
         {
           id: DEMO_IDS.quoteLineUnpaid,
@@ -363,6 +399,7 @@ export const demoSeed: DemoSeed = {
       docNumber: "Q-0005",
       status: "accepted",
       validUntil: "2026-10-15",
+      shareToken: DEMO_IDS.quoteClaimsShare,
       lines: [
         {
           id: DEMO_IDS.quoteLineClaims,

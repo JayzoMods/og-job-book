@@ -8,6 +8,10 @@ export function printRemittanceTitle(): string {
   return "Remittance advice";
 }
 
+export function printGstQuarterTitle(): string {
+  return "GST quarter report";
+}
+
 export function printDocumentTitle(input: {
   kind: PrintKind;
   docNumber: string;

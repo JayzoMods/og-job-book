@@ -337,6 +337,10 @@ export type LedgerJson = {
     suburb: string;
     description: string;
     status: string;
+    propertyAddress: string;
+    vendorName: string;
+    purchaserName: string;
+    reportType: string;
   }>;
   quotes: Array<{
     docNumber: string;

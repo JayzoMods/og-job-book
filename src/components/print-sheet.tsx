@@ -22,6 +22,7 @@ export function PrintSheet({
   customerPhone,
   customerEmail,
   jobDescription,
+  inspectionLines,
   totals,
   dueDate,
   paidCents,
@@ -37,7 +38,7 @@ export function PrintSheet({
   amountDueCents,
 }: {
   kind: PrintKind;
-  jobHref: string;
+  jobHref?: string;
   docNumber: string;
   status: string;
   statusLabel?: string;
@@ -51,6 +52,7 @@ export function PrintSheet({
   customerPhone?: string;
   customerEmail?: string;
   jobDescription: string;
+  inspectionLines?: Array<{ label: string; value: string }>;
   totals: DocumentTotals;
   dueDate?: string;
   paidCents?: number;
@@ -71,9 +73,13 @@ export function PrintSheet({
   return (
     <div className="print-page mx-auto flex w-full max-w-[210mm] flex-col gap-4 px-4 py-6 sm:px-6">
       <div className="print-toolbar flex flex-wrap items-center justify-between gap-3">
-        <Link href={jobHref} className="text-sm text-navy underline-offset-2 hover:underline">
-          ← Back to job
-        </Link>
+        {jobHref ? (
+          <Link href={jobHref} className="text-sm text-navy underline-offset-2 hover:underline">
+            ← Back to job
+          </Link>
+        ) : (
+          <span />
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted">A4. In the dialog, choose Save as PDF.</p>
           <PrintButton />
@@ -118,6 +124,11 @@ export function PrintSheet({
               <p className="text-sm text-[#4b5563]">Email {customerEmail}</p>
             ) : null}
             <p className="mt-2 text-sm text-[#1b2430]">{jobDescription}</p>
+            {inspectionLines?.map((line) => (
+              <p key={line.label} className="mt-1 text-sm text-[#4b5563]">
+                {line.label} {line.value}
+              </p>
+            ))}
             {againstLabel ? (
               <p className="mt-2 text-sm text-[#1b2430]">Against {againstLabel}</p>
             ) : null}

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { RemittanceSheet } from "@/components/account-sheet";
 import { loadDb } from "@/db/ready";
-import { getInvoiceById, getJob, isUuid } from "@/db/queries";
+import { getInvoiceById, getJobInOrg, isUuid } from "@/db/queries";
 import { remittanceAdvice } from "@/lib/ledger/statement";
 
 export async function generateMetadata({
@@ -23,7 +23,7 @@ export default async function PrintRemittancePage({
     notFound();
   }
   const invoice = await getInvoiceById(state.db, invoiceId);
-  const job = invoice ? await getJob(state.db, invoice.jobId) : null;
+  const job = invoice ? await getJobInOrg(state.db, invoice.jobId, state.org.id) : null;
   const payment = invoice?.payments.find((row) => row.id === paymentId);
   if (!invoice || !job || job.id !== id || !payment) {
     notFound();

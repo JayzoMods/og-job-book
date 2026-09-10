@@ -6,8 +6,10 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { customers, invoices, jobs, quotes, rateCardItems } from "./schema";
 import {
-  CUSTOMERS_UNIQUE_INDEX,
-  LEDGER_TABLES,
+    CUSTOMERS_UNIQUE_INDEX,
+    LEDGER_TABLES,
+    ORG_MEMBERS_UNIQUE_INDEX,
+    QUOTES_SHARE_TOKEN_INDEX,
   RATE_CARD_UNIQUE_INDEX,
   baselineShouldRun,
   journalSqlFileName,
@@ -83,15 +85,19 @@ describe("sqlFileHash", () => {
 });
 
 describe("schema unique indexes and self-FKs", () => {
-  it("keeps the live unique index names on customers and the rate card", () => {
+  it("keeps the live unique index names on customers, the rate card, and quote share tokens", () => {
     const customerIndexes = getTableConfig(customers).indexes.map(
       (index) => index.config.name,
     );
     const rateIndexes = getTableConfig(rateCardItems).indexes.map(
       (index) => index.config.name,
     );
+    const quoteIndexes = getTableConfig(quotes).indexes.map(
+      (index) => index.config.name,
+    );
     expect(customerIndexes).toContain(CUSTOMERS_UNIQUE_INDEX);
     expect(rateIndexes).toContain(RATE_CARD_UNIQUE_INDEX);
+    expect(quoteIndexes).toContain(QUOTES_SHARE_TOKEN_INDEX);
   });
 
   it("declares the self and recurring foreign keys that handwritten SQL already had", () => {
@@ -136,5 +142,7 @@ describe("drizzle-kit journal on disk", () => {
     }
     expect(sql).toContain(CUSTOMERS_UNIQUE_INDEX);
     expect(sql).toContain(RATE_CARD_UNIQUE_INDEX);
+    expect(sql).toContain(QUOTES_SHARE_TOKEN_INDEX);
+    expect(sql).toContain(ORG_MEMBERS_UNIQUE_INDEX);
   });
 });

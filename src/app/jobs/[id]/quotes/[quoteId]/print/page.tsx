@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
-import { getJob, getQuoteById, isUuid } from "@/db/queries";
+import { getJobInOrg, getQuoteById, isUuid } from "@/db/queries";
 import { formatInstantAu } from "@/lib/ledger/print";
 import { quoteRevisionLabel } from "@/lib/ledger/revise";
 import { quoteDocumentStatus, quoteIsExpired } from "@/lib/ledger/terms";
+import { inspectionPrintLines } from "@/lib/ledger/inspection";
 import { todayIsoSydney } from "@/lib/ledger/tax";
 
 export async function generateMetadata({
@@ -26,7 +27,7 @@ export default async function PrintQuotePage({
     notFound();
   }
   const quote = await getQuoteById(state.db, quoteId);
-  const job = quote ? await getJob(state.db, quote.jobId) : null;
+  const job = quote ? await getJobInOrg(state.db, quote.jobId, state.org.id) : null;
   if (!quote || !job || job.id !== id) {
     notFound();
   }
@@ -54,8 +55,9 @@ export default async function PrintQuotePage({
       suburb={job.suburb}
       customerPhone={job.customerPhone}
       customerEmail={job.customerEmail}
-      jobDescription={job.description}
-      totals={quote.totals}
+        jobDescription={job.description}
+        inspectionLines={inspectionPrintLines(job)}
+        totals={quote.totals}
       validUntil={quote.validUntil}
       kindLine={quoteRevisionLabel(quote.revisedFromDocNumber) ?? undefined}
       notice={

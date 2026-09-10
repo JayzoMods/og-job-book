@@ -48,8 +48,12 @@ describe("demo seed shape", () => {
     expect(priya?.email).toBe("priya.shah@example.com");
     const quoted = demoSeed.jobs.find((job) => job.id === DEMO_IDS.jobQuoted);
     expect(quoted?.notes).toBe("Quote Q-0001 sent. Access via side gate.");
+    expect(quoted?.propertyAddress).toBe("18 Blenheim Street, Randwick NSW 2031");
+    expect(quoted?.reportType).toBe("pre_purchase");
     const paid = demoSeed.jobs.find((job) => job.id === DEMO_IDS.jobPaid);
     expect(paid?.notes).toBe("");
+    expect(paid?.vendorName).toBe("");
+    expect(paid?.purchaserName).toBe("");
     const mixed = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0001");
     expect(computeDocument(mixed!.lines).totalCents).toBe(123200);
   });
@@ -215,6 +219,8 @@ describe("demo seed shape", () => {
     expect(copy?.duplicatedFromJobId).toBe(DEMO_IDS.jobEnquiry);
     expect(copy?.status).toBe("enquiry");
     expect(copy?.description).toBe("Roof leak after storms — inspection only");
+    expect(copy?.propertyAddress).toBe("22 Illawarra Road, Marrickville NSW 2204");
+    expect(copy?.reportType).toBe("roof");
     const revision = demoSeed.quotes.find((quote) => quote.docNumber === "Q-0006");
     expect(revision?.jobId).toBe(DEMO_IDS.jobQuoted);
     expect(revision?.status).toBe("draft");
@@ -222,6 +228,8 @@ describe("demo seed shape", () => {
     expect(computeDocument(revision!.lines).totalCents).toBe(123200);
     expect(computeDocument(revision!.lines).gstCents).toBe(11000);
     expect(mixed?.status).toBe("sent");
+    expect(mixed?.shareToken).toBe(DEMO_IDS.quoteMixedShare);
+    expect(revision?.shareToken ?? null).toBeNull();
   });
 
   it("pins optional cost on the rate card and Q-0003 without changing Q-0001 money", () => {

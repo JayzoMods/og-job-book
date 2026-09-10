@@ -19,7 +19,7 @@ import {
 
 export async function seedDemo(db: AppDb): Promise<string> {
   await db.execute(
-    sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, recurring_invoice_lines, recurring_invoices, jobs, customers, rate_card_items, orgs restart identity cascade`,
+    sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, recurring_invoice_lines, recurring_invoices, jobs, customers, rate_card_items, org_members, orgs restart identity cascade`,
   );
 
   await db.insert(orgs).values({
@@ -57,6 +57,10 @@ export async function seedDemo(db: AppDb): Promise<string> {
       customerId: job.customerId,
       description: job.description,
       notes: job.notes,
+      propertyAddress: job.propertyAddress,
+      vendorName: job.vendorName,
+      purchaserName: job.purchaserName,
+      reportType: job.reportType,
       status: job.status,
       duplicatedFromJobId: job.duplicatedFromJobId ?? null,
     })),
@@ -70,6 +74,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
       status: quote.status,
       validUntil: quote.validUntil,
       revisedFromQuoteId: quote.revisedFromQuoteId ?? null,
+      shareToken: quote.shareToken ?? null,
     });
     await db.insert(quoteLines).values(
       quote.lines.map((line) => ({

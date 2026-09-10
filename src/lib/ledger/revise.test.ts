@@ -9,18 +9,26 @@ import {
 } from "./revise";
 
 describe("duplicateJobFields", () => {
-  it("copies customer, description, and notes onto a new enquiry", () => {
+  it("copies customer, description, notes, and inspection fields onto a new enquiry", () => {
     expect(
       duplicateJobFields({
         id: "job-1",
         customerId: "cust-1",
         description: "Roof leak after storms — inspection only",
         notes: "Called after the storm.",
+        propertyAddress: "22 Illawarra Road, Marrickville NSW 2204",
+        vendorName: "",
+        purchaserName: "Samira Chen",
+        reportType: "roof",
       }),
     ).toEqual({
       customerId: "cust-1",
       description: "Roof leak after storms — inspection only",
       notes: "Called after the storm.",
+      propertyAddress: "22 Illawarra Road, Marrickville NSW 2204",
+      vendorName: "",
+      purchaserName: "Samira Chen",
+      reportType: "roof",
       status: "enquiry",
       duplicatedFromJobId: "job-1",
     });

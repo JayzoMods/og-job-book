@@ -4,6 +4,7 @@ export const KIT_JOURNAL_RELATIVE = "drizzle/meta/_journal.json";
 
 export const LEDGER_TABLES = [
   "orgs",
+  "org_members",
   "customers",
   "jobs",
   "quotes",
@@ -20,6 +21,8 @@ export const LEDGER_TABLES = [
 
 export const CUSTOMERS_UNIQUE_INDEX = "customers_org_id_name_suburb_key";
 export const RATE_CARD_UNIQUE_INDEX = "rate_card_items_org_id_description_unit_key";
+export const QUOTES_SHARE_TOKEN_INDEX = "quotes_share_token_key";
+export const ORG_MEMBERS_UNIQUE_INDEX = "org_members_clerk_user_id_key";
 
 export type KitJournalEntry = {
   tag: string;

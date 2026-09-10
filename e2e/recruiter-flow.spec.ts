@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DEMO_IDS } from "../src/data/demo-seed";
 
 /**
  * Recruiter path from the product brief: no login, Load demo, GST on a
@@ -56,17 +57,68 @@ test.describe("recruiter flow", () => {
 
     await page.getByRole("link", { name: /Tom Nguyen.*quoted/ }).click();
     await expect(page.getByRole("heading", { name: "Quote Q-0001" })).toBeVisible();
+    await expect(page.getByText("Property 18 Blenheim Street, Randwick NSW 2031")).toBeVisible();
+    await expect(page.getByText("Report Pre-purchase building")).toBeVisible();
 
     const quote = page
       .locator("article")
       .filter({ has: page.getByRole("heading", { name: "Quote Q-0001" }) });
     await expect(quote.getByText("$110.00").first()).toBeVisible();
     await expect(quote.getByText("$1,232.00").first()).toBeVisible();
+    await expect(quote.getByRole("button", { name: "Email quote" })).toBeVisible();
+    await expect(quote.getByRole("link", { name: "Open share link" })).toBeVisible();
+    await expect(page.getByText(/Email is off on this deploy/)).toBeVisible();
 
-    await quote.getByRole("link", { name: "Print / PDF" }).click();
+    await quote.getByRole("button", { name: "Email quote" }).click();
+    await expect(page).toHaveURL(/[?&]error=email/, { timeout: 15_000 });
+    await expect(
+      page.getByRole("alert").filter({ hasText: "RESEND_API_KEY" }),
+    ).toBeVisible();
+
+    await page.goto("/");
+    await page.getByRole("link", { name: /Alex Moretti.*invoiced/ }).click();
+    const unpaid = page
+      .locator("article")
+      .filter({ has: page.getByRole("heading", { name: "Invoice INV-0002" }) });
+    await expect(unpaid.getByRole("button", { name: "Pay with card" })).toBeVisible();
+    await expect(page.getByText(/Card pay is off on this deploy/)).toBeVisible();
+    await unpaid.getByRole("button", { name: "Pay with card" }).click();
+    await expect(page).toHaveURL(/[?&]error=stripe/, { timeout: 15_000 });
+    await expect(
+      page.getByRole("alert").filter({ hasText: "STRIPE_SECRET_KEY" }),
+    ).toBeVisible();
+
+    await expect(unpaid.getByRole("button", { name: "Send to Xero" })).toBeVisible();
+    await expect(page.getByText(/Accounting write is off on this deploy/)).toBeVisible();
+    await unpaid.getByRole("button", { name: "Send to Xero" }).click();
+    await expect(page).toHaveURL(/[?&]error=accounting/, { timeout: 15_000 });
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Xero or MYOB tokens" }),
+    ).toBeVisible();
+
+    await page.goto("/");
+    await page.getByRole("link", { name: /Tom Nguyen.*quoted/ }).click();
+    const quoteAgain = page
+      .locator("article")
+      .filter({ has: page.getByRole("heading", { name: "Quote Q-0001" }) });
+    await quoteAgain.getByRole("link", { name: "Print / PDF" }).click();
     await expect(page.getByRole("heading", { name: "Quote Q-0001" })).toBeVisible();
     await expect(page.getByText("$110.00").first()).toBeVisible();
     await expect(page.getByText("$1,232.00").first()).toBeVisible();
+    await expect(page.getByText("Property 18 Blenheim Street, Randwick NSW 2031")).toBeVisible();
+
+    await page.goto(`/q/${DEMO_IDS.quoteMixedShare}`);
+    await expect(page).toHaveURL(new RegExp(`/q/${DEMO_IDS.quoteMixedShare}$`));
+    await expect(page.getByRole("heading", { name: "Quote Q-0001" })).toBeVisible();
+    await expect(page.getByText("$110.00").first()).toBeVisible();
+    await expect(page.getByText("$1,232.00").first()).toBeVisible();
+    await expect(page.getByText("Property 18 Blenheim Street, Randwick NSW 2031")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Accept quote" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to job" })).toHaveCount(0);
+    await expect(page.getByText(/not a customer portal/i)).toBeVisible();
+
+    await page.goto("/q/not-a-real-share-token");
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 
     await page.goto("/");
     await page.getByRole("link", { name: /Priya Shah.*paid/ }).click();
@@ -116,6 +168,7 @@ test.describe("recruiter flow", () => {
     const sent = page
       .locator("article")
       .filter({ has: page.getByRole("heading", { name: "Quote Q-0007" }) });
+    await expect(sent.getByRole("link", { name: "Open share link" })).toBeVisible();
     await sent.getByRole("button", { name: "Accept quote" }).click();
 
     const accepted = page

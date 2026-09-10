@@ -9,6 +9,10 @@ services:
       - "5433:5432"
     volumes:
       - jobbook_pg:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
 
 volumes:
   jobbook_pg:

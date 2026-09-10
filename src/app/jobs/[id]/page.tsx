@@ -16,8 +16,14 @@ import {
   reviseQuoteAction,
   appendRateItemsAction,
   saveJobNotesAction,
+  saveInspectionAction,
   saveRecurringAction,
   sendQuoteAction,
+  emailQuoteAction,
+  emailInvoiceAction,
+  payInvoiceWithCardAction,
+  writeAccountingAction,
+  writeQuoteShareAction,
   setRecurringStatusAction,
   voidCreditNoteAction,
   voidInvoiceAction,
@@ -26,11 +32,12 @@ import {
 } from "@/app/actions";
 import { DocumentPanel, LineFields, MarkupNote } from "@/components/document-panel";
 import { QuoteCompose } from "@/components/quote-compose";
+import { ShareLinkCopy } from "@/components/share-link-copy";
 import { extractAiConfigured } from "@/lib/extract/lines";
 import { loadDb } from "@/db/ready";
 import {
   getInvoicesForJob,
-  getJob,
+  getJobInOrg,
   getQuotesForJob,
   getRecurringForJob,
   isUuid,
@@ -60,6 +67,15 @@ import {
   recurringIsDue,
   RECURRING_FREQUENCIES,
 } from "@/lib/ledger/recurring";
+import { canEmailDocument, emailSendConfigured } from "@/lib/ledger/email";
+import { canShareQuote, parseShareToken, quoteSharePath } from "@/lib/ledger/share";
+import { canChargeInvoice, stripeChargeConfigured } from "@/lib/ledger/stripe";
+import {
+  accountingWriteConfigured,
+  canWriteCredit,
+  canWriteInvoice,
+} from "@/lib/ledger/accounting";
+import { inspectionPrintLines, REPORT_TYPE_OPTIONS } from "@/lib/ledger/inspection";
 import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { formatIsoDateAu } from "@/lib/ledger/print";
 import { todayIsoSydney, lineUnitLabel, parseLineUnit } from "@/lib/ledger/tax";
@@ -86,6 +102,8 @@ const ERRORS: Record<string, string> = {
   variation: "A variation needs at least one complete line.",
   retention: "Retention release cannot exceed the amount held.",
   notes: "Job notes cannot be longer than 2,000 characters.",
+  inspection:
+    "Property, vendor, and purchaser are optional. Property is at most 200 characters. Vendor and purchaser are at most 120. Report type must be one of the listed kinds, or none.",
   revise:
     "This quote cannot be revised. Drafts are edited in place. Accepted quotes with invoices stay as they are. Only one draft revision can be open at a time.",
   job: "Could not duplicate this job.",
@@ -93,6 +111,14 @@ const ERRORS: Record<string, string> = {
   cost: "Cost is optional. If you enter one, it must be a positive amount. It is not printed.",
   recurring:
     "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue is manual. Cancelled jobs cannot take a new issue.",
+  email:
+    "Email needs a customer address, a sent quote or live invoice, and RESEND_API_KEY plus EMAIL_FROM on this deploy. Drafts, superseded quotes, and void invoices are not emailed. Leave the key unset on a public no-login site.",
+  stripe:
+    "Card pay needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, a live invoice with amount due now, and an http origin for the return URLs. Drafts and void invoices are not charged. Leave the keys unset on a public no-login site.",
+  accounting:
+    "Accounting write needs Xero or MYOB tokens, a sent or paid invoice (or an issued credit note for Xero), and posts the document total — not amount due now. Drafts and void documents are not posted. MYOB is invoices only. Leave the keys unset on a public no-login site.",
+  share:
+    "Only a sent, accepted, declined, or superseded quote has a share link. Drafts stay in this ledger. The link is not a customer portal.",
 };
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">) {
@@ -114,7 +140,7 @@ export default async function JobPage({
     notFound();
   }
   const { db, org } = state;
-  const job = await getJob(db, id);
+  const job = org ? await getJobInOrg(db, id, org.id) : null;
   if (!job || !org) {
     notFound();
   }
@@ -126,6 +152,13 @@ export default async function JobPage({
   ]);
   const errorKey = typeof query.error === "string" ? query.error : "";
   const error = ERRORS[errorKey];
+  const emailed = query.emailed === "1";
+  const cardReturned = query.card === "1";
+  const accountingWritten = query.accounting === "1";
+  const shareReady = query.share === "1";
+  const emailConfigured = emailSendConfigured();
+  const stripeConfigured = stripeChargeConfigured();
+  const accountingConfigured = accountingWriteConfigured();
   const today = todayIsoSydney();
   const payLines = invoicePayLines(
     invoicePayDetails({
@@ -156,9 +189,34 @@ export default async function JobPage({
             {job.customerEmail ? (
               <p className="text-sm text-muted">Email {job.customerEmail}</p>
             ) : null}
+            {inspectionPrintLines(job).map((line) => (
+              <p key={line.label} className="mt-1 text-sm text-muted">
+                {line.label} {line.value}
+              </p>
+            ))}
             <p className="mt-2 text-sm text-muted">
-              Shown as given. This app does not call, SMS, or send email.
+              Shown as given. This app does not call or SMS. Email of a sent quote or
+              live invoice uses Resend when configured. Not a mailbox.
             </p>
+            {!emailConfigured ? (
+              <p className="mt-2 text-sm text-muted">
+                Email is off on this deploy (<code className="font-mono">RESEND_API_KEY</code>{" "}
+                unset). Leave it unset on a public no-login site.
+              </p>
+            ) : null}
+            {!stripeConfigured ? (
+              <p className="mt-2 text-sm text-muted">
+                Card pay is off on this deploy (<code className="font-mono">STRIPE_SECRET_KEY</code>{" "}
+                unset). Leave it unset on a public no-login site.
+              </p>
+            ) : null}
+            {!accountingConfigured ? (
+              <p className="mt-2 text-sm text-muted">
+                Accounting write is off on this deploy (
+                <code className="font-mono">XERO_ACCESS_TOKEN</code> unset). Leave it unset
+                on a public no-login site. Not Xero OAuth.
+              </p>
+            ) : null}
             {job.duplicatedFromJobId ? (
               <p className="mt-2 text-sm text-muted">
                 Duplicated from an earlier job.{" "}
@@ -202,6 +260,80 @@ export default async function JobPage({
           {error}
         </p>
       ) : null}
+      {emailed ? (
+        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+          Emailed the document to the customer address.
+        </p>
+      ) : null}
+      {cardReturned ? (
+        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+          Returned from Stripe Checkout. The books update when Stripe posts the webhook.
+        </p>
+      ) : null}
+      {accountingWritten ? (
+        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+          Posted the document to Xero or MYOB. This ledger does not store the remote id.
+        </p>
+      ) : null}
+      {shareReady ? (
+        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+          Share link updated. The old token no longer opens the quote.
+        </p>
+      ) : null}
+
+      <section className="surface p-6">
+        <h2 className="font-display text-2xl">Inspection</h2>
+        <p className="mt-2 text-sm text-muted">
+          Optional site fields for an inspection job. Printed on the quote and
+          invoice. Not a customer portal, not GPS, and not a booking calendar.
+          Job notes below stay internal.
+        </p>
+        <form action={saveInspectionAction} className="mt-4 grid gap-3 sm:grid-cols-2">
+          <input type="hidden" name="jobId" value={job.id} />
+          <label className="text-sm sm:col-span-2">
+            Property
+            <input
+              className="field mt-1"
+              name="propertyAddress"
+              maxLength={200}
+              defaultValue={job.propertyAddress}
+            />
+          </label>
+          <label className="text-sm">
+            Vendor
+            <input
+              className="field mt-1"
+              name="vendorName"
+              maxLength={120}
+              defaultValue={job.vendorName}
+            />
+          </label>
+          <label className="text-sm">
+            Purchaser
+            <input
+              className="field mt-1"
+              name="purchaserName"
+              maxLength={120}
+              defaultValue={job.purchaserName}
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            Report type
+            <select className="field mt-1" name="reportType" defaultValue={job.reportType}>
+              {REPORT_TYPE_OPTIONS.map((option) => (
+                <option key={option.value || "none"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <button type="submit" className="btn btn-ghost">
+              Save inspection
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="surface p-6">
         <h2 className="font-display text-2xl">Job notes</h2>
@@ -231,8 +363,9 @@ export default async function JobPage({
         <h2 className="font-display text-2xl">Recurring invoices</h2>
         <p className="text-sm text-muted">
           A line template you issue again on a cadence. Not a booking calendar. Issue is a
-          click — this app does not send email. Changing the template does not rewrite
-          invoices already issued. Retention is not held on these invoices.
+          click — issuing does not email. Email the invoice after it exists, when Resend is
+          configured. Changing the template does not rewrite invoices already issued.
+          Retention is not held on these invoices.
         </p>
         {recurringList.map((template) => {
           const cadence = parseRecurringFrequency(template.frequency);
@@ -403,6 +536,10 @@ export default async function JobPage({
 
       <section className="space-y-4">
         <h2 className="font-display text-2xl">Quotes</h2>
+        <p className="text-sm text-muted">
+          A sent quote can be opened at a share link without the job URL. Drafts are
+          not shared. The link is not a customer portal.
+        </p>
         {quoteList.length === 0 ? (
           <p className="text-muted">No quotes yet.</p>
         ) : null}
@@ -443,6 +580,7 @@ export default async function JobPage({
               quote.id,
             ),
           });
+          const shareToken = parseShareToken(quote.shareToken);
           return (
           <DocumentPanel
             key={quote.id}
@@ -631,6 +769,32 @@ export default async function JobPage({
             >
               Print / PDF
             </Link>
+            {canShareQuote(quote.status) ? (
+              shareToken ? (
+                <>
+                  <Link href={quoteSharePath(shareToken)} className="btn btn-ghost">
+                    Open share link
+                  </Link>
+                  <ShareLinkCopy key={shareToken} path={quoteSharePath(shareToken)} />
+                  <form action={writeQuoteShareAction}>
+                    <input type="hidden" name="quoteId" value={quote.id} />
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <input type="hidden" name="rotate" value="1" />
+                    <button type="submit" className="btn btn-ghost">
+                      New share link
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <form action={writeQuoteShareAction}>
+                  <input type="hidden" name="quoteId" value={quote.id} />
+                  <input type="hidden" name="jobId" value={job.id} />
+                  <button type="submit" className="btn btn-ghost">
+                    Create share link
+                  </button>
+                </form>
+              )
+            ) : null}
             {quote.status === "draft" && job.status !== "cancelled" ? (
               <>
                 <form action={sendQuoteAction}>
@@ -666,6 +830,15 @@ export default async function JobPage({
                   </button>
                 </form>
               </>
+            ) : null}
+            {canEmailDocument("quote", quote.status) ? (
+              <form action={emailQuoteAction}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="jobId" value={job.id} />
+                <button type="submit" className="btn btn-ghost">
+                  Email quote
+                </button>
+              </form>
             ) : null}
             {canRevise ? (
               <form action={reviseQuoteAction}>
@@ -845,6 +1018,16 @@ export default async function JobPage({
                         </div>
                       </form>
                     ) : null}
+                    {canChargeInvoice(invoice.status, remainingCents) &&
+                    job.status !== "cancelled" ? (
+                      <form action={payInvoiceWithCardAction}>
+                        <input type="hidden" name="invoiceId" value={invoice.id} />
+                        <input type="hidden" name="jobId" value={job.id} />
+                        <button type="submit" className="btn btn-ghost">
+                          Pay with card
+                        </button>
+                      </form>
+                    ) : null}
                     {invoice.status !== "void" && remainingCents > 0 && job.status !== "cancelled" ? (
                       <form action={issueCreditNoteAction} className="space-y-3">
                         <input type="hidden" name="invoiceId" value={invoice.id} />
@@ -882,6 +1065,37 @@ export default async function JobPage({
                 >
                   Print / PDF
                 </Link>
+                {canEmailDocument("invoice", invoice.status) ? (
+                  <form action={emailInvoiceAction}>
+                    <input type="hidden" name="invoiceId" value={invoice.id} />
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <button type="submit" className="btn btn-ghost">
+                      Email invoice
+                    </button>
+                  </form>
+                ) : null}
+                {canWriteInvoice(invoice.status) && job.status !== "cancelled" ? (
+                  <>
+                    <form action={writeAccountingAction}>
+                      <input type="hidden" name="jobId" value={job.id} />
+                      <input type="hidden" name="id" value={invoice.id} />
+                      <input type="hidden" name="provider" value="xero" />
+                      <input type="hidden" name="kind" value="invoice" />
+                      <button type="submit" className="btn btn-ghost">
+                        Send to Xero
+                      </button>
+                    </form>
+                    <form action={writeAccountingAction}>
+                      <input type="hidden" name="jobId" value={job.id} />
+                      <input type="hidden" name="id" value={invoice.id} />
+                      <input type="hidden" name="provider" value="myob" />
+                      <input type="hidden" name="kind" value="invoice" />
+                      <button type="submit" className="btn btn-ghost">
+                        Send to MYOB
+                      </button>
+                    </form>
+                  </>
+                ) : null}
               </DocumentPanel>
               {invoice.creditNotes.map((note) => (
                 <DocumentPanel
@@ -913,6 +1127,17 @@ export default async function JobPage({
                   >
                     Print / PDF
                   </Link>
+                  {canWriteCredit(note.status) && job.status !== "cancelled" ? (
+                    <form action={writeAccountingAction}>
+                      <input type="hidden" name="jobId" value={job.id} />
+                      <input type="hidden" name="id" value={note.id} />
+                      <input type="hidden" name="provider" value="xero" />
+                      <input type="hidden" name="kind" value="credit" />
+                      <button type="submit" className="btn btn-ghost">
+                        Send to Xero
+                      </button>
+                    </form>
+                  ) : null}
                 </DocumentPanel>
               ))}
               </div>

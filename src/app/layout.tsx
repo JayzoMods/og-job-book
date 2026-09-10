@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { clerkAuthConfigured } from "@/lib/ledger/auth";
 import "./globals.css";
 
 const display = Source_Serif_4({
@@ -33,23 +34,38 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const body = clerkAuthConfigured()
+    ? await clerkBody(children)
+    : openBody(children);
+
   return (
     <html
       lang="en-AU"
       data-scroll-behavior="smooth"
       className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-paper font-sans text-ink">
-        <a className="skip-link print:hidden" href="#main">
-          Skip to jobs
-        </a>
-        <SiteHeader />
-        <main id="main" className="flex flex-1 flex-col">
-          {children}
-        </main>
-        <SiteFooter />
-      </body>
+      <body className="flex min-h-full flex-col bg-paper font-sans text-ink">{body}</body>
     </html>
   );
+}
+
+function openBody(children: React.ReactNode) {
+  return (
+    <>
+      <a className="skip-link print:hidden" href="#main">
+        Skip to jobs
+      </a>
+      <SiteHeader />
+      <main id="main" className="flex flex-1 flex-col">
+        {children}
+      </main>
+      <SiteFooter />
+    </>
+  );
+}
+
+async function clerkBody(children: React.ReactNode) {
+  const { ClerkAppShell } = await import("@/components/clerk-app-shell");
+  return <ClerkAppShell>{children}</ClerkAppShell>;
 }

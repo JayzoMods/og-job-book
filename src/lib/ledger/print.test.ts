@@ -3,6 +3,7 @@ import {
   formatIsoDateAu,
   formatInstantAu,
   printDocumentTitle,
+  printGstQuarterTitle,
   printRemittanceTitle,
   printStatementTitle,
 } from "./print";
@@ -90,6 +91,9 @@ describe("printStatementTitle", () => {
   it("does not say Tax invoice", () => {
     expect(printStatementTitle()).toBe("Statement of account");
     expect(printRemittanceTitle()).toBe("Remittance advice");
+    expect(printGstQuarterTitle()).toBe("GST quarter report");
+    expect(printGstQuarterTitle()).not.toMatch(/tax invoice/i);
+    expect(printGstQuarterTitle()).not.toMatch(/BAS/i);
   });
 });
 

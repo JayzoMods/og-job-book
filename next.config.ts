@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["pg"],
   allowedDevOrigins: ["127.0.0.1"],
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "img.clerk.com" }],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "4mb",

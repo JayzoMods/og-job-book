@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
-import { getInvoiceById, getJob, getQuotesForJob, isUuid } from "@/db/queries";
+import { getInvoiceById, getJobInOrg, getQuotesForJob, isUuid } from "@/db/queries";
 import { invoiceKindSubtitle, parseInvoiceKind } from "@/lib/ledger/claim";
 import { invoiceSettlement } from "@/lib/ledger/credit";
 import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { invoiceDocumentStatus, invoiceIsOverdue, paymentTermsLabel } from "@/lib/ledger/terms";
+import { inspectionPrintLines } from "@/lib/ledger/inspection";
 import { todayIsoSydney } from "@/lib/ledger/tax";
 
 export async function generateMetadata({
@@ -27,7 +28,7 @@ export default async function PrintInvoicePage({
     notFound();
   }
   const invoice = await getInvoiceById(state.db, invoiceId);
-  const job = invoice ? await getJob(state.db, invoice.jobId) : null;
+  const job = invoice ? await getJobInOrg(state.db, invoice.jobId, state.org.id) : null;
   if (!invoice || !job || job.id !== id) {
     notFound();
   }
@@ -66,6 +67,7 @@ export default async function PrintInvoicePage({
       customerPhone={job.customerPhone}
       customerEmail={job.customerEmail}
       jobDescription={job.description}
+      inspectionLines={inspectionPrintLines(job)}
       totals={invoice.totals}
       dueDate={invoice.dueDate}
       paidCents={invoice.paidCents}

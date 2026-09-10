@@ -1,6 +1,9 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { orgOwnsResource } from "@/lib/ledger/auth";
 import { nextJobStatusFromInvoices } from "@/lib/ledger/claim";
 import { creditedCentsFromNotes, invoiceBalanceCents } from "@/lib/ledger/credit";
+import { canIssueRecurring, nextIssueOn, recurringIsDue } from "@/lib/ledger/recurring";
+import { parseShareToken } from "@/lib/ledger/share";
 import {
   computeDocument,
   parseAmountKind,
@@ -10,6 +13,8 @@ import {
   type LineInput,
   type PaymentMethod,
 } from "@/lib/ledger/tax";
+import { dueDateFromTerms, parsePaymentTermsDays } from "@/lib/ledger/terms";
+import { allocateDocNumber } from "./allocate";
 import type { AppDb } from "./client";
 import {
   creditNoteLines,
@@ -18,6 +23,7 @@ import {
   invoiceLines,
   invoices,
   jobs,
+  orgMembers,
   orgs,
   payments,
   quoteLines,
@@ -89,6 +95,24 @@ export type InvoiceWithTotals = InvoiceRow & {
 export async function getOrg(db: AppDb): Promise<OrgRow | null> {
   const [org] = await db.select().from(orgs).orderBy(asc(orgs.createdAt)).limit(1);
   return org ?? null;
+}
+
+export async function getOrgById(db: AppDb, orgId: string): Promise<OrgRow | null> {
+  const [org] = await db.select().from(orgs).where(eq(orgs.id, orgId)).limit(1);
+  return org ?? null;
+}
+
+export async function getOrgForClerkUser(
+  db: AppDb,
+  clerkUserId: string,
+): Promise<OrgRow | null> {
+  const [row] = await db
+    .select({ org: orgs })
+    .from(orgMembers)
+    .innerJoin(orgs, eq(orgMembers.orgId, orgs.id))
+    .where(eq(orgMembers.clerkUserId, clerkUserId))
+    .limit(1);
+  return row?.org ?? null;
 }
 
 export async function getCustomer(
@@ -268,6 +292,18 @@ export async function getJob(db: AppDb, jobId: string): Promise<JobWithCustomer 
   return row ? toJobWithCustomer(row) : null;
 }
 
+export async function getJobInOrg(
+  db: AppDb,
+  jobId: string,
+  orgId: string,
+): Promise<JobWithCustomer | null> {
+  const job = await getJob(db, jobId);
+  if (!job || !orgOwnsResource(job.orgId, orgId)) {
+    return null;
+  }
+  return job;
+}
+
 async function gstRegisteredForJob(
   db: AppDb,
   jobId: string,
@@ -359,6 +395,25 @@ export async function getQuoteById(
     totals: computeDocument(lines.map(toLineInput), gstRegistered),
     revisedFromDocNumber: await lookupRevisedFromDocNumber(db, quote.revisedFromQuoteId),
   };
+}
+
+export async function getQuoteByShareToken(
+  db: AppDb,
+  token: string,
+): Promise<QuoteWithTotals | null> {
+  const parsed = parseShareToken(token);
+  if (!parsed) {
+    return null;
+  }
+  const [quote] = await db
+    .select()
+    .from(quotes)
+    .where(eq(quotes.shareToken, parsed))
+    .limit(1);
+  if (!quote) {
+    return null;
+  }
+  return getQuoteById(db, quote.id);
 }
 
 export async function getInvoiceById(
@@ -691,4 +746,128 @@ export async function listRecurringForOrg(
     });
   }
   return result;
+}
+
+class RecurringIssueRace extends Error {
+  constructor() {
+    super("recurring issue race");
+  }
+}
+
+export type IssueRecurringOutcome =
+  | {
+      ok: true;
+      invoiceId: string;
+      docNumber: string;
+      jobId: string;
+      nextIssueOn: string;
+    }
+  | { ok: false; reason: "missing" | "not_due" };
+
+export async function issueRecurringInvoice(
+  db: AppDb,
+  input: {
+    recurringId: string;
+    today: string;
+    orgId?: string;
+    requireDue: boolean;
+  },
+): Promise<IssueRecurringOutcome> {
+  const template = await getRecurringById(db, input.recurringId);
+  if (!template) {
+    return { ok: false, reason: "missing" };
+  }
+  const job = input.orgId
+    ? await getJobInOrg(db, template.jobId, input.orgId)
+    : await getJob(db, template.jobId);
+  if (!job) {
+    return { ok: false, reason: "missing" };
+  }
+  const org = await getOrgById(db, job.orgId);
+  if (!org) {
+    return { ok: false, reason: "missing" };
+  }
+  const gate = {
+    status: template.status,
+    frequency: template.frequency,
+    nextIssueOn: template.nextIssueOn,
+    endOn: template.endOn,
+    hasLines: template.lines.length > 0,
+    jobStatus: job.status,
+  };
+  if (input.requireDue) {
+    if (!recurringIsDue(gate, input.today)) {
+      return { ok: false, reason: "not_due" };
+    }
+  } else if (!canIssueRecurring(gate)) {
+    return { ok: false, reason: "not_due" };
+  }
+  const advanced = nextIssueOn(template.nextIssueOn, template.frequency);
+  if (!advanced) {
+    return { ok: false, reason: "not_due" };
+  }
+  const termsDays = parsePaymentTermsDays(org.paymentTermsDays);
+  const dueDate = dueDateFromTerms(input.today, termsDays);
+  try {
+    return await db.transaction(async (tx) => {
+      const docNumber = await allocateDocNumber(tx, job.orgId, "invoice");
+      const [invoice] = await tx
+        .insert(invoices)
+        .values({
+          jobId: job.id,
+          quoteId: null,
+          recurringInvoiceId: template.id,
+          docNumber,
+          status: "sent",
+          dueDate,
+          paymentTermsDays: termsDays,
+          kind: "recurring",
+          claimPercent: null,
+          retentionPercent: 0,
+          retentionHeldCents: 0,
+        })
+        .returning({ id: invoices.id });
+      if (!invoice) {
+        throw new Error("invoice insert failed");
+      }
+      await tx.insert(invoiceLines).values(
+        template.lines.map((line, index) => ({
+          invoiceId: invoice.id,
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          unitPriceCents: line.unitPriceCents,
+          taxCode: line.taxCode,
+          amountKind: line.amountKind,
+          sortOrder: index,
+        })),
+      );
+      await tx.update(jobs).set({ status: "invoiced" }).where(eq(jobs.id, job.id));
+      const [moved] = await tx
+        .update(recurringInvoices)
+        .set({ nextIssueOn: advanced })
+        .where(
+          and(
+            eq(recurringInvoices.id, template.id),
+            eq(recurringInvoices.nextIssueOn, template.nextIssueOn),
+          ),
+        )
+        .returning({ id: recurringInvoices.id });
+      if (!moved) {
+        throw new RecurringIssueRace();
+      }
+      return {
+        ok: true as const,
+        invoiceId: invoice.id,
+        docNumber,
+        jobId: job.id,
+        nextIssueOn: advanced,
+      };
+    });
+  } catch (error) {
+    if (error instanceof RecurringIssueRace) {
+      return { ok: false, reason: "not_due" };
+    }
+    throw error;
+  }
 }

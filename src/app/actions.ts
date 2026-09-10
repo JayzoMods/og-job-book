@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { dollarsToCents, parseAudAmount } from "@/lib/ledger/money";
@@ -10,16 +11,24 @@ import { getDb, type AppDb } from "@/db/client";
 import {
   findOrCreateCustomer,
   getCustomer,
+  getCreditNoteById,
+  getInvoiceById,
   getInvoicesForJob,
   getJob,
+  getJobInOrg,
   getOrg,
+  getOrgForClerkUser,
+  getQuoteById,
+  getQuoteByShareToken,
   getQuotesForJob,
   getRateItemsByIds,
   getRecurringById,
   isUuid,
+  issueRecurringInvoice,
   listRateItems,
   recordInvoicePayment,
   syncJobStatus,
+  type OrgRow,
 } from "@/db/queries";
 import {
   creditNoteLines,
@@ -28,6 +37,7 @@ import {
   invoiceLines,
   invoices,
   jobs,
+  orgMembers,
   orgs,
   quoteLines,
   quotes,
@@ -36,6 +46,8 @@ import {
   recurringInvoices,
 } from "@/db/schema";
 import { seedDemo } from "@/db/seed";
+import { canLoadDemo, clerkAuthConfigured } from "@/lib/ledger/auth";
+import { resolveClerkUserId } from "@/lib/tenant";
 import {
   parseAmountKind,
   parseLineUnit,
@@ -72,6 +84,7 @@ import {
 } from "@/lib/ledger/pay";
 import { parseCustomerName, parseSuburb } from "@/lib/ledger/customer";
 import { parseEmail, parseJobNotes, parsePhone } from "@/lib/ledger/contact";
+import { parseInspectionFields } from "@/lib/ledger/inspection";
 import {
   mergeRateAndTypedLines,
   parseRateDescription,
@@ -80,13 +93,12 @@ import {
 } from "@/lib/ledger/rate-card";
 import { parseCostCents } from "@/lib/ledger/markup";
 import {
-  canIssueRecurring,
   endOnBeforeNext,
-  nextIssueOn,
   parseOptionalIsoDate,
   parseRecurringFrequency,
   parseRecurringStatus,
 } from "@/lib/ledger/recurring";
+import { runDueRecurringQueue } from "@/lib/queue/run";
 import {
   canReviseQuote,
   duplicateJobFields,
@@ -100,6 +112,27 @@ import {
   parseIsoDate,
   parsePaymentTermsDays,
 } from "@/lib/ledger/terms";
+import {
+  parseRecipientEmail,
+  sendDocumentEmail,
+  type EmailDocumentKind,
+} from "@/lib/ledger/email";
+import {
+  canRespondToSharedQuote,
+  canShareQuote,
+  generateShareToken,
+  parseShareToken,
+  quoteSharePath,
+  resolveShareToken,
+} from "@/lib/ledger/share";
+import { createCheckoutSession } from "@/lib/ledger/stripe";
+import {
+  invoiceDateForWrite,
+  parseAccountingLines,
+  writeAccountingDocument,
+  type AccountingDocumentKind,
+  type AccountingProvider,
+} from "@/lib/ledger/accounting";
 
 function requireDb(): AppDb {
   const db = getDb();
@@ -107,6 +140,41 @@ function requireDb(): AppDb {
     redirect("/?error=db");
   }
   return db;
+}
+
+async function requireOrg(db: AppDb): Promise<OrgRow> {
+  if (clerkAuthConfigured()) {
+    const userId = await resolveClerkUserId();
+    if (!userId) {
+      redirect("/sign-in");
+    }
+    const org = await getOrgForClerkUser(db, userId);
+    if (!org) {
+      redirect("/?error=member");
+    }
+    return org;
+  }
+  const first = await getOrg(db);
+  if (!first) {
+    redirect("/?error=org");
+  }
+  return first;
+}
+
+async function requireDbOrg(): Promise<{ db: AppDb; org: OrgRow }> {
+  const db = requireDb();
+  const org = await requireOrg(db);
+  return { db, org };
+}
+
+async function requestOrigin(): Promise<string> {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "";
+  if (!host) {
+    return "";
+  }
+  const proto = headerList.get("x-forwarded-proto") ?? "http";
+  return `${proto}://${host}`;
 }
 
 const orgSchema = z.object({
@@ -130,6 +198,10 @@ const jobSchema = z.object({
   phone: z.string(),
   email: z.string(),
   notes: z.string(),
+  propertyAddress: z.string(),
+  vendorName: z.string(),
+  purchaserName: z.string(),
+  reportType: z.string(),
 });
 
 const paymentSchema = z.object({
@@ -140,6 +212,9 @@ const paymentSchema = z.object({
 });
 
 export async function loadDemoAction() {
+  if (!canLoadDemo(clerkAuthConfigured())) {
+    redirect("/?error=auth");
+  }
   const db = requireDb();
   try {
     await seedDemo(db);
@@ -166,8 +241,6 @@ export async function saveOrgAction(formData: FormData) {
   if (!parsed.success) {
     redirect("/?error=org");
   }
-  const db = requireDb();
-  const existing = await getOrg(db);
   const values = {
     name: parsed.data.name,
     abn: parsed.data.abn,
@@ -180,10 +253,26 @@ export async function saveOrgAction(formData: FormData) {
     payId: parsePayId(parsed.data.payId),
     retentionPercent: parseRetentionPercent(parsed.data.retentionPercent),
   };
-  if (existing) {
-    await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
+  const db = requireDb();
+  if (clerkAuthConfigured()) {
+    const userId = await resolveClerkUserId();
+    if (!userId) {
+      redirect("/sign-in");
+    }
+    const existing = await getOrgForClerkUser(db, userId);
+    if (existing) {
+      await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
+    } else {
+      const [created] = await db.insert(orgs).values(values).returning({ id: orgs.id });
+      await db.insert(orgMembers).values({ orgId: created.id, clerkUserId: userId });
+    }
   } else {
-    await db.insert(orgs).values(values);
+    const existing = await getOrg(db);
+    if (existing) {
+      await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
+    } else {
+      await db.insert(orgs).values(values);
+    }
   }
   revalidatePath("/");
   revalidatePath("/", "layout");
@@ -199,6 +288,10 @@ export async function createJobAction(formData: FormData) {
     phone: formData.get("phone") ?? "",
     email: formData.get("email") ?? "",
     notes: formData.get("notes") ?? "",
+    propertyAddress: formData.get("propertyAddress") ?? "",
+    vendorName: formData.get("vendorName") ?? "",
+    purchaserName: formData.get("purchaserName") ?? "",
+    reportType: formData.get("reportType") ?? "",
   });
   if (!parsed.success) {
     redirect("/?error=job");
@@ -206,14 +299,16 @@ export async function createJobAction(formData: FormData) {
   const phone = parsePhone(parsed.data.phone);
   const email = parseEmail(parsed.data.email);
   const notes = parseJobNotes(parsed.data.notes);
-  if (phone === null || email === null || notes === null) {
+  const inspection = parseInspectionFields({
+    propertyAddress: parsed.data.propertyAddress,
+    vendorName: parsed.data.vendorName,
+    purchaserName: parsed.data.purchaserName,
+    reportType: parsed.data.reportType,
+  });
+  if (phone === null || email === null || notes === null || inspection === null) {
     redirect("/?error=job");
   }
-  const db = requireDb();
-  const org = await getOrg(db);
-  if (!org) {
-    redirect("/?error=org");
-  }
+  const { db, org } = await requireDbOrg();
   const selectedId = parsed.data.customerId.trim();
   let customerId: string;
   if (selectedId !== "") {
@@ -243,6 +338,10 @@ export async function createJobAction(formData: FormData) {
       customerId,
       description: parsed.data.description,
       notes,
+      propertyAddress: inspection.propertyAddress,
+      vendorName: inspection.vendorName,
+      purchaserName: inspection.purchaserName,
+      reportType: inspection.reportType,
       status: "enquiry",
     })
     .returning({ id: jobs.id });
@@ -258,8 +357,8 @@ export async function duplicateJobAction(formData: FormData) {
   if (!isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job) {
     redirect("/?error=job");
   }
@@ -271,6 +370,10 @@ export async function duplicateJobAction(formData: FormData) {
       customerId: fields.customerId,
       description: fields.description,
       notes: fields.notes,
+      propertyAddress: fields.propertyAddress,
+      vendorName: fields.vendorName,
+      purchaserName: fields.purchaserName,
+      reportType: fields.reportType,
       status: fields.status,
       duplicatedFromJobId: fields.duplicatedFromJobId,
     })
@@ -291,11 +394,7 @@ export async function saveCustomerAction(formData: FormData) {
   if (!isUuid(customerId) || !name || !suburb || phone === null || email === null) {
     redirect("/?error=customer");
   }
-  const db = requireDb();
-  const org = await getOrg(db);
-  if (!org) {
-    redirect("/?error=org");
-  }
+  const { db, org } = await requireDbOrg();
   const customer = await getCustomer(db, customerId);
   if (!customer || customer.orgId !== org.id) {
     redirect("/?error=customer");
@@ -324,11 +423,7 @@ export async function saveRateItemAction(formData: FormData) {
   if (!description || unitPriceCents === null || !cost.ok || taxCode === null) {
     redirect("/?error=rate");
   }
-  const db = requireDb();
-  const org = await getOrg(db);
-  if (!org) {
-    redirect("/?error=org");
-  }
+  const { db, org } = await requireDbOrg();
   try {
     if (rateItemId === "") {
       const existing = await listRateItems(db, org.id);
@@ -368,11 +463,7 @@ export async function deleteRateItemAction(formData: FormData) {
   if (!isUuid(rateItemId)) {
     redirect("/?error=rate");
   }
-  const db = requireDb();
-  const org = await getOrg(db);
-  if (!org) {
-    redirect("/?error=org");
-  }
+  const { db, org } = await requireDbOrg();
   const [item] = await getRateItemsByIds(db, org.id, [rateItemId]);
   if (!item) {
     redirect("/?error=rate");
@@ -389,12 +480,42 @@ export async function saveJobNotesAction(formData: FormData) {
   if (!isUuid(jobId) || notes === null) {
     redirect(isUuid(jobId) ? `/jobs/${jobId}?error=notes` : "/?error=job");
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job) {
     redirect("/?error=job");
   }
   await db.update(jobs).set({ notes }).where(eq(jobs.id, job.id));
+  revalidatePath("/");
+  revalidatePath(`/jobs/${job.id}`);
+  redirect(`/jobs/${job.id}`);
+}
+
+export async function saveInspectionAction(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "").trim();
+  const inspection = parseInspectionFields({
+    propertyAddress: String(formData.get("propertyAddress") ?? ""),
+    vendorName: String(formData.get("vendorName") ?? ""),
+    purchaserName: String(formData.get("purchaserName") ?? ""),
+    reportType: String(formData.get("reportType") ?? ""),
+  });
+  if (!isUuid(jobId) || inspection === null) {
+    redirect(isUuid(jobId) ? `/jobs/${jobId}?error=inspection` : "/?error=job");
+  }
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect("/?error=job");
+  }
+  await db
+    .update(jobs)
+    .set({
+      propertyAddress: inspection.propertyAddress,
+      vendorName: inspection.vendorName,
+      purchaserName: inspection.purchaserName,
+      reportType: inspection.reportType,
+    })
+    .where(eq(jobs.id, job.id));
   revalidatePath("/");
   revalidatePath(`/jobs/${job.id}`);
   redirect(`/jobs/${job.id}`);
@@ -534,8 +655,8 @@ export async function createQuoteAction(formData: FormData) {
   const typed = typedResult.lines;
   const rateIds = formData.getAll("rateItemId").map(String).filter(isUuid);
   const validUntil = readValidUntil(formData, defaultQuoteValidUntil(todayIsoSydney()));
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
     redirect(`/jobs/${jobId}?error=quote`);
   }
@@ -585,8 +706,8 @@ export async function appendRateItemsAction(formData: FormData) {
     redirect("/?error=job");
   }
   const rateIds = formData.getAll("rateItemId").map(String).filter(isUuid);
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!job || job.status === "cancelled" || !quote || quote.status !== "draft") {
@@ -622,8 +743,8 @@ export async function reviseQuoteAction(formData: FormData) {
   if (!isUuid(quoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   const quoteList = await getQuotesForJob(db, jobId);
   const invoiceList = await getInvoicesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
@@ -696,13 +817,13 @@ export async function sendQuoteAction(formData: FormData) {
   if (!isUuid(quoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "draft") {
     redirect(`/jobs/${jobId}?error=quote`);
   }
-  const job = await getJob(db, jobId);
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
     redirect(`/jobs/${jobId}?error=quote`);
   }
@@ -711,7 +832,10 @@ export async function sendQuoteAction(formData: FormData) {
     : undefined;
   const supersede = source ? shouldSupersedeOnSend(source.status) : false;
   await db.transaction(async (tx) => {
-    await tx.update(quotes).set({ status: "sent" }).where(eq(quotes.id, quoteId));
+    await tx
+      .update(quotes)
+      .set({ status: "sent", shareToken: generateShareToken() })
+      .where(eq(quotes.id, quoteId));
     if (source && supersede) {
       await tx
         .update(quotes)
@@ -728,21 +852,212 @@ export async function sendQuoteAction(formData: FormData) {
   redirect(`/jobs/${jobId}`);
 }
 
+async function emailDocumentAndRedirect(input: {
+  jobId: string;
+  kind: EmailDocumentKind;
+  documentId: string;
+}) {
+  if (!isUuid(input.jobId) || !isUuid(input.documentId)) {
+    redirect("/?error=job");
+  }
+  const db = requireDb();
+  const org = await requireOrg(db);
+  const job = await getJobInOrg(db, input.jobId, org.id);
+  if (!job || !org) {
+    redirect(`/jobs/${input.jobId}?error=email`);
+  }
+  const to = parseRecipientEmail(job.customerEmail);
+  const origin = await requestOrigin();
+
+  if (input.kind === "quote") {
+    const quote = await getQuoteById(db, input.documentId);
+    if (!quote || quote.jobId !== job.id) {
+      redirect(`/jobs/${job.id}?error=email`);
+    }
+    const result = await sendDocumentEmail({
+      kind: "quote",
+      status: quote.status,
+      docNumber: quote.docNumber,
+      orgName: org.name,
+      abn: org.abn,
+      gstRegistered: org.gstRegistered,
+      gstCents: quote.totals.gstCents,
+      totalCents: quote.totals.totalCents,
+      jobId: job.id,
+      documentId: quote.id,
+      shareToken: quote.shareToken,
+      to,
+      origin,
+    });
+    if (result.status !== "sent") {
+      redirect(`/jobs/${job.id}?error=email`);
+    }
+  } else {
+    const invoice = await getInvoiceById(db, input.documentId);
+    if (!invoice || invoice.jobId !== job.id) {
+      redirect(`/jobs/${job.id}?error=email`);
+    }
+    const result = await sendDocumentEmail({
+      kind: "invoice",
+      status: invoice.status,
+      docNumber: invoice.docNumber,
+      orgName: org.name,
+      abn: org.abn,
+      gstRegistered: org.gstRegistered,
+      gstCents: invoice.totals.gstCents,
+      totalCents: invoice.totals.totalCents,
+      jobId: job.id,
+      documentId: invoice.id,
+      to,
+      origin,
+    });
+    if (result.status !== "sent") {
+      redirect(`/jobs/${job.id}?error=email`);
+    }
+  }
+
+  revalidatePath(`/jobs/${job.id}`);
+  redirect(`/jobs/${job.id}?emailed=1`);
+}
+
+export async function emailQuoteAction(formData: FormData) {
+  await emailDocumentAndRedirect({
+    jobId: String(formData.get("jobId") ?? ""),
+    kind: "quote",
+    documentId: String(formData.get("quoteId") ?? ""),
+  });
+}
+
+export async function emailInvoiceAction(formData: FormData) {
+  await emailDocumentAndRedirect({
+    jobId: String(formData.get("jobId") ?? ""),
+    kind: "invoice",
+    documentId: String(formData.get("invoiceId") ?? ""),
+  });
+}
+
+export async function payInvoiceWithCardAction(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const invoiceId = String(formData.get("invoiceId") ?? "");
+  if (!isUuid(jobId) || !isUuid(invoiceId)) {
+    redirect("/?error=job");
+  }
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  const invoice = await getInvoiceById(db, invoiceId);
+  if (!job || !invoice || invoice.jobId !== job.id) {
+    redirect(`/jobs/${jobId}?error=stripe`);
+  }
+  const remainingCents = invoiceBalanceCents(
+    invoice.totals.totalCents,
+    invoice.paidCents,
+    invoice.creditedCents,
+    invoice.retentionHeldCents,
+  );
+  const origin = await requestOrigin();
+  const result = await createCheckoutSession({
+    invoiceId: invoice.id,
+    jobId: job.id,
+    docNumber: invoice.docNumber,
+    status: invoice.status,
+    remainingCents,
+    origin,
+    customerEmail: parseRecipientEmail(job.customerEmail),
+  });
+  if (result.status !== "created") {
+    redirect(`/jobs/${job.id}?error=stripe`);
+  }
+  redirect(result.url);
+}
+
+export async function writeAccountingAction(formData: FormData) {
+  const jobId = String(formData.get("jobId") ?? "");
+  const documentId = String(formData.get("id") ?? "");
+  const providerRaw = String(formData.get("provider") ?? "");
+  const kindRaw = String(formData.get("kind") ?? "");
+  if (!isUuid(jobId) || !isUuid(documentId)) {
+    redirect("/?error=job");
+  }
+  if (providerRaw !== "xero" && providerRaw !== "myob") {
+    redirect(`/jobs/${jobId}?error=accounting`);
+  }
+  if (kindRaw !== "invoice" && kindRaw !== "credit") {
+    redirect(`/jobs/${jobId}?error=accounting`);
+  }
+  const provider = providerRaw as AccountingProvider;
+  const kind = kindRaw as AccountingDocumentKind;
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=accounting`);
+  }
+  if (!job || !org) {
+    redirect(`/jobs/${jobId}?error=accounting`);
+  }
+
+  if (kind === "invoice") {
+    const invoice = await getInvoiceById(db, documentId);
+    if (!invoice || invoice.jobId !== job.id) {
+      redirect(`/jobs/${job.id}?error=accounting`);
+    }
+    const issuedOn =
+      invoiceDateForWrite(invoice.dueDate, invoice.paymentTermsDays) ?? invoice.dueDate;
+    const result = await writeAccountingDocument({
+      provider,
+      kind: "invoice",
+      status: invoice.status,
+      docNumber: invoice.docNumber,
+      customerName: job.customerName,
+      jobDescription: job.description,
+      issuedOn,
+      dueDate: invoice.dueDate,
+      gstRegistered: org.gstRegistered,
+      lines: parseAccountingLines(invoice.lines),
+    });
+    if (result.status !== "written") {
+      redirect(`/jobs/${job.id}?error=accounting`);
+    }
+  } else {
+    const note = await getCreditNoteById(db, documentId);
+    if (!note || note.jobId !== job.id) {
+      redirect(`/jobs/${job.id}?error=accounting`);
+    }
+    const result = await writeAccountingDocument({
+      provider,
+      kind: "credit",
+      status: note.status,
+      docNumber: note.docNumber,
+      customerName: job.customerName,
+      jobDescription: job.description,
+      issuedOn: todayIsoSydney(note.createdAt),
+      gstRegistered: org.gstRegistered,
+      lines: parseAccountingLines(note.lines),
+      againstDocNumber: note.againstDocNumber,
+    });
+    if (result.status !== "written") {
+      redirect(`/jobs/${job.id}?error=accounting`);
+    }
+  }
+
+  revalidatePath(`/jobs/${job.id}`);
+  redirect(`/jobs/${job.id}?accounting=1`);
+}
+
 export async function acceptQuoteAction(formData: FormData) {
   const quoteId = String(formData.get("quoteId") ?? "");
   const jobId = String(formData.get("jobId") ?? "");
   if (!isUuid(quoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
-  if (!quote || quote.status !== "sent") {
+  if (!job || !quote || quote.status !== "sent") {
     redirect(`/jobs/${jobId}?error=quote`);
   }
   await db.update(quotes).set({ status: "accepted" }).where(eq(quotes.id, quoteId));
-  const job = await getJob(db, jobId);
-  if (job && job.status !== "invoiced" && job.status !== "paid" && job.status !== "cancelled") {
+  if (job.status !== "invoiced" && job.status !== "paid" && job.status !== "cancelled") {
     await db.update(jobs).set({ status: "accepted" }).where(eq(jobs.id, jobId));
   }
   revalidatePath(`/jobs/${jobId}`);
@@ -755,15 +1070,77 @@ export async function declineQuoteAction(formData: FormData) {
   if (!isUuid(quoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "sent") {
     redirect(`/jobs/${jobId}?error=quote`);
   }
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=quote`);
+  }
   await db.update(quotes).set({ status: "declined" }).where(eq(quotes.id, quoteId));
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}`);
+}
+
+export async function writeQuoteShareAction(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "");
+  const jobId = String(formData.get("jobId") ?? "");
+  const rotate = String(formData.get("rotate") ?? "") === "1";
+  if (!isUuid(quoteId) || !isUuid(jobId)) {
+    redirect("/?error=job");
+  }
+  const { db, org } = await requireDbOrg();
+  const quote = await getQuoteById(db, quoteId);
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!quote || !job || quote.jobId !== job.id) {
+    redirect(`/jobs/${jobId}?error=share`);
+  }
+  if (!canShareQuote(quote.status)) {
+    redirect(`/jobs/${jobId}?error=share`);
+  }
+  const previous = parseShareToken(quote.shareToken);
+  const token = resolveShareToken({ existing: quote.shareToken, rotate });
+  if (token !== quote.shareToken) {
+    await db.update(quotes).set({ shareToken: token }).where(eq(quotes.id, quote.id));
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  if (previous) {
+    revalidatePath(quoteSharePath(previous));
+  }
+  revalidatePath(quoteSharePath(token));
+  redirect(`/jobs/${jobId}?share=1`);
+}
+
+export async function respondToSharedQuoteAction(formData: FormData) {
+  const token = parseShareToken(String(formData.get("token") ?? ""));
+  const decision = String(formData.get("decision") ?? "");
+  if (!token || (decision !== "accept" && decision !== "decline")) {
+    redirect("/");
+  }
+  const db = requireDb();
+  const quote = await getQuoteByShareToken(db, token);
+  if (!quote) {
+    redirect("/");
+  }
+  const path = quoteSharePath(token);
+  const job = await getJob(db, quote.jobId);
+  if (!job || job.status === "cancelled" || !canRespondToSharedQuote(quote.status)) {
+    redirect(`${path}?error=share`);
+  }
+  if (decision === "accept") {
+    await db.update(quotes).set({ status: "accepted" }).where(eq(quotes.id, quote.id));
+    if (job.status !== "invoiced" && job.status !== "paid") {
+      await db.update(jobs).set({ status: "accepted" }).where(eq(jobs.id, job.id));
+    }
+  } else {
+    await db.update(quotes).set({ status: "declined" }).where(eq(quotes.id, quote.id));
+  }
+  revalidatePath(path);
+  revalidatePath(`/jobs/${job.id}`);
+  redirect(path);
 }
 
 export async function issueInvoiceAction(formData: FormData) {
@@ -772,18 +1149,14 @@ export async function issueInvoiceAction(formData: FormData) {
   if (!isUuid(quoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "accepted") {
     redirect(`/jobs/${jobId}?error=invoice`);
   }
-  const job = await getJob(db, jobId);
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
-    redirect(`/jobs/${jobId}?error=invoice`);
-  }
-  const org = await getOrg(db);
-  if (!org) {
     redirect(`/jobs/${jobId}?error=invoice`);
   }
   const existing = await getInvoicesForJob(db, jobId);
@@ -844,18 +1217,14 @@ export async function issueClaimAction(formData: FormData) {
   if (kind !== "deposit" && kind !== "progress") {
     redirect(`/jobs/${jobId}?error=claim`);
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "accepted") {
     redirect(`/jobs/${jobId}?error=claim`);
   }
-  const job = await getJob(db, jobId);
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
-    redirect(`/jobs/${jobId}?error=claim`);
-  }
-  const org = await getOrg(db);
-  if (!org) {
     redirect(`/jobs/${jobId}?error=claim`);
   }
   const existing = await getInvoicesForJob(db, jobId);
@@ -932,18 +1301,14 @@ export async function issueVariationAction(formData: FormData) {
   if (lines.length === 0) {
     redirect(`/jobs/${jobId}?error=variation`);
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "accepted") {
     redirect(`/jobs/${jobId}?error=variation`);
   }
-  const job = await getJob(db, jobId);
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
-    redirect(`/jobs/${jobId}?error=variation`);
-  }
-  const org = await getOrg(db);
-  if (!org) {
     redirect(`/jobs/${jobId}?error=variation`);
   }
   const totals = computeDocument(lines, org.gstRegistered);
@@ -982,18 +1347,14 @@ export async function issueRetentionReleaseAction(formData: FormData) {
     redirect("/?error=job");
   }
   const dollars = parseAudAmount(String(formData.get("amount") ?? ""));
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "accepted" || dollars === null || dollars <= 0) {
     redirect(`/jobs/${jobId}?error=retention`);
   }
-  const job = await getJob(db, jobId);
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
-    redirect(`/jobs/${jobId}?error=retention`);
-  }
-  const org = await getOrg(db);
-  if (!org) {
     redirect(`/jobs/${jobId}?error=retention`);
   }
   const existing = await getInvoicesForJob(db, jobId);
@@ -1066,7 +1427,11 @@ export async function recordPaymentAction(formData: FormData) {
   if (dollars === null || dollars <= 0) {
     redirect(`/jobs/${jobId}?error=payment`);
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=payment`);
+  }
   const invoiceList = await getInvoicesForJob(db, jobId);
   const invoice = invoiceList.find((row) => row.id === parsed.data.invoiceId);
   if (!invoice || invoice.status === "void") {
@@ -1096,7 +1461,11 @@ export async function replaceQuoteLinesAction(formData: FormData) {
   if (lines.length === 0) {
     redirect(`/jobs/${jobId}?error=lines`);
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=quote`);
+  }
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "draft") {
@@ -1128,7 +1497,11 @@ export async function deleteDraftQuoteAction(formData: FormData) {
   if (!isUuid(quoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=quote`);
+  }
   const quoteList = await getQuotesForJob(db, jobId);
   const quote = quoteList.find((row) => row.id === quoteId);
   if (!quote || quote.status !== "draft") {
@@ -1144,8 +1517,8 @@ export async function cancelJobAction(formData: FormData) {
   if (!isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "paid") {
     redirect(`/jobs/${jobId}?error=cancel`);
   }
@@ -1167,7 +1540,11 @@ export async function voidInvoiceAction(formData: FormData) {
   if (!isUuid(invoiceId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=void`);
+  }
   const invoiceList = await getInvoicesForJob(db, jobId);
   const invoice = invoiceList.find((row) => row.id === invoiceId);
   if (!invoice || invoice.status === "paid" || invoice.status === "void") {
@@ -1190,18 +1567,14 @@ export async function issueCreditNoteAction(formData: FormData) {
     redirect(`/jobs/${jobId}?error=lines`);
   }
   const reason = parseCreditReason(String(formData.get("reason") ?? ""));
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
     redirect(`/jobs/${jobId}?error=credit`);
   }
   const invoiceList = await getInvoicesForJob(db, jobId);
   const invoice = invoiceList.find((row) => row.id === invoiceId);
   if (!invoice || invoice.status === "void") {
-    redirect(`/jobs/${jobId}?error=credit`);
-  }
-  const org = await getOrg(db);
-  if (!org) {
     redirect(`/jobs/${jobId}?error=credit`);
   }
   const totals = computeDocument(lines, org.gstRegistered);
@@ -1256,7 +1629,11 @@ export async function voidCreditNoteAction(formData: FormData) {
   if (!isUuid(creditNoteId) || !isUuid(jobId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=credit`);
+  }
   const invoiceList = await getInvoicesForJob(db, jobId);
   const note = invoiceList
     .flatMap((invoice) => invoice.creditNotes)
@@ -1291,8 +1668,8 @@ export async function saveRecurringAction(formData: FormData) {
   ) {
     redirect(`/jobs/${jobId}?error=recurring`);
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   if (!job || job.status === "cancelled") {
     redirect(`/jobs/${jobId}?error=recurring`);
   }
@@ -1374,8 +1751,8 @@ export async function setRecurringStatusAction(formData: FormData) {
   if (!isUuid(jobId) || !isUuid(recurringId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   const existing = await getRecurringById(db, recurringId);
   if (!job || job.status === "cancelled" || !existing || existing.jobId !== jobId) {
     redirect(`/jobs/${jobId}?error=recurring`);
@@ -1395,9 +1772,10 @@ export async function deleteRecurringAction(formData: FormData) {
   if (!isUuid(jobId) || !isUuid(recurringId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
+  const { db, org } = await requireDbOrg();
+  const job = await getJobInOrg(db, jobId, org.id);
   const existing = await getRecurringById(db, recurringId);
-  if (!existing || existing.jobId !== jobId) {
+  if (!job || !existing || existing.jobId !== job.id) {
     redirect(`/jobs/${jobId}?error=recurring`);
   }
   await db.delete(recurringInvoices).where(eq(recurringInvoices.id, recurringId));
@@ -1412,63 +1790,35 @@ export async function issueRecurringAction(formData: FormData) {
   if (!isUuid(jobId) || !isUuid(recurringId)) {
     redirect("/?error=job");
   }
-  const db = requireDb();
-  const job = await getJob(db, jobId);
+  const { db, org } = await requireDbOrg();
   const template = await getRecurringById(db, recurringId);
-  const org = await getOrg(db);
-  if (!job || !template || !org || template.jobId !== jobId) {
+  if (!template || template.jobId !== jobId) {
     redirect(`/jobs/${jobId}?error=recurring`);
   }
-  if (
-    !canIssueRecurring({
-      status: template.status,
-      frequency: template.frequency,
-      nextIssueOn: template.nextIssueOn,
-      endOn: template.endOn,
-      hasLines: template.lines.length > 0,
-      jobStatus: job.status,
-    })
-  ) {
-    redirect(`/jobs/${jobId}?error=recurring`);
-  }
-  const advanced = nextIssueOn(template.nextIssueOn, template.frequency);
-  if (!advanced) {
-    redirect(`/jobs/${jobId}?error=recurring`);
-  }
-  const termsDays = parsePaymentTermsDays(org.paymentTermsDays);
-  const dueDate = dueDateFromTerms(todayIsoSydney(), termsDays);
-  try {
-    await db.transaction(async (tx) => {
-      await insertIssuedInvoice(tx, {
-        orgId: job.orgId,
-        jobId,
-        quoteId: null,
-        recurringInvoiceId: template.id,
-        kind: "recurring",
-        claimPercent: null,
-        retentionPercent: 0,
-        gstRegistered: org.gstRegistered,
-        termsDays,
-        dueDate,
-        lines: template.lines.map((line, index) => ({
-          description: line.description,
-          quantity: line.quantity,
-          unit: line.unit,
-          unitPriceCents: line.unitPriceCents,
-          taxCode: line.taxCode,
-          amountKind: line.amountKind,
-          sortOrder: index,
-        })),
-      });
-      await tx
-        .update(recurringInvoices)
-        .set({ nextIssueOn: advanced })
-        .where(eq(recurringInvoices.id, template.id));
-    });
-  } catch {
+  const outcome = await issueRecurringInvoice(db, {
+    recurringId,
+    today: todayIsoSydney(),
+    orgId: org.id,
+    requireDue: false,
+  });
+  if (!outcome.ok) {
     redirect(`/jobs/${jobId}?error=recurring`);
   }
   revalidatePath("/");
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}`);
+}
+
+export async function queueDueRecurringAction() {
+  const { db, org } = await requireDbOrg();
+  const result = await runDueRecurringQueue({
+    db,
+    orgId: org.id,
+    today: todayIsoSydney(),
+  });
+  if (result.status !== "queued") {
+    redirect("/?error=queue");
+  }
+  revalidatePath("/");
+  redirect("/?queued=1");
 }

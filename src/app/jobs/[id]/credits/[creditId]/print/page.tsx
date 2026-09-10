@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
-import { getCreditNoteById, getJob, isUuid } from "@/db/queries";
+import { getCreditNoteById, getJobInOrg, isUuid } from "@/db/queries";
+import { inspectionPrintLines } from "@/lib/ledger/inspection";
 import { formatInstantAu } from "@/lib/ledger/print";
 
 export async function generateMetadata({
@@ -23,7 +24,7 @@ export default async function PrintCreditNotePage({
     notFound();
   }
   const note = await getCreditNoteById(state.db, creditId);
-  const job = note ? await getJob(state.db, note.jobId) : null;
+  const job = note ? await getJobInOrg(state.db, note.jobId, state.org.id) : null;
   if (!note || !job || job.id !== id) {
     notFound();
   }
@@ -44,6 +45,7 @@ export default async function PrintCreditNotePage({
       customerPhone={job.customerPhone}
       customerEmail={job.customerEmail}
       jobDescription={job.description}
+      inspectionLines={inspectionPrintLines(job)}
       totals={note.totals}
       againstLabel={
         note.againstDocNumber ? `invoice ${note.againstDocNumber}` : undefined

@@ -4,10 +4,18 @@ export function duplicateJobFields(job: {
   customerId: string;
   description: string;
   notes: string;
+  propertyAddress: string;
+  vendorName: string;
+  purchaserName: string;
+  reportType: string;
 }): {
   customerId: string;
   description: string;
   notes: string;
+  propertyAddress: string;
+  vendorName: string;
+  purchaserName: string;
+  reportType: string;
   status: "enquiry";
   duplicatedFromJobId: string;
 } {
@@ -15,6 +23,10 @@ export function duplicateJobFields(job: {
     customerId: job.customerId,
     description: job.description,
     notes: job.notes,
+    propertyAddress: job.propertyAddress,
+    vendorName: job.vendorName,
+    purchaserName: job.purchaserName,
+    reportType: job.reportType,
     status: "enquiry",
     duplicatedFromJobId: job.id,
   };
