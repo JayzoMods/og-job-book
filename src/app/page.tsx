@@ -568,6 +568,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                         idle="Print statement"
                         busy="Opening…"
                         className="btn btn-ghost w-full"
+                        awaitNavigation
                       />
                       </div>
                     </form>
@@ -655,6 +656,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 idle="Print GST quarter"
                 busy="Opening…"
                 className="btn btn-ghost w-full"
+                awaitNavigation
               />
               </div>
             </form>

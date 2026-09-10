@@ -31,6 +31,7 @@ import {
   issueRecurringAction,
 } from "@/app/actions";
 import { DocumentPanel, LineFields, MarkupNote } from "@/components/document-panel";
+import { PendingLink } from "@/components/pending-link";
 import { PendingSubmit } from "@/components/pending-submit";
 import { QuoteCompose } from "@/components/quote-compose";
 import { ShareLinkCopy } from "@/components/share-link-copy";
@@ -230,12 +231,12 @@ export default async function JobPage({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill status={job.status} />
-            <Link
+            <PendingLink
               href={`/customers/${job.customerId}/statement/print`}
               className="btn btn-ghost"
-            >
-              Print statement
-            </Link>
+              idle="Print statement"
+              busy="Opening…"
+            />
             <form action={duplicateJobAction}>
               <input type="hidden" name="jobId" value={job.id} />
               <PendingSubmit
@@ -794,12 +795,12 @@ export default async function JobPage({
               </div>
             }
           >
-            <Link
+            <PendingLink
               href={`/jobs/${job.id}/quotes/${quote.id}/print`}
               className="btn btn-ghost"
-            >
-              Print / PDF
-            </Link>
+              idle="Print / PDF"
+              busy="Opening…"
+            />
             {canShareQuote(quote.status) ? (
               shareToken ? (
                 <>
@@ -1020,12 +1021,12 @@ export default async function JobPage({
                               {payment.paidOn} · {payment.method} ·{" "}
                               {formatAudFromCents(payment.amountCents)}
                             </span>
-                            <Link
+                            <PendingLink
                               href={`/jobs/${job.id}/invoices/${invoice.id}/payments/${payment.id}/print`}
                               className="text-navy underline-offset-2 hover:underline"
-                            >
-                              Print remittance
-                            </Link>
+                              idle="Print remittance"
+                              busy="Opening…"
+                            />
                           </li>
                         ))}
                       </ul>
@@ -1123,12 +1124,12 @@ export default async function JobPage({
                   </div>
                 }
               >
-                <Link
+                <PendingLink
                   href={`/jobs/${job.id}/invoices/${invoice.id}/print`}
                   className="btn btn-ghost"
-                >
-                  Print / PDF
-                </Link>
+                  idle="Print / PDF"
+                  busy="Opening…"
+                />
                 {emailConfigured && canEmailDocument("invoice", invoice.status) ? (
                   <form action={emailInvoiceAction}>
                     <input type="hidden" name="invoiceId" value={invoice.id} />
@@ -1195,12 +1196,12 @@ export default async function JobPage({
                     </div>
                   }
                 >
-                  <Link
+                  <PendingLink
                     href={`/jobs/${job.id}/credits/${note.id}/print`}
                     className="btn btn-ghost"
-                  >
-                    Print / PDF
-                  </Link>
+                    idle="Print / PDF"
+                    busy="Opening…"
+                  />
                   {accountingConfigured &&
                   canWriteCredit(note.status) &&
                   job.status !== "cancelled" ? (
