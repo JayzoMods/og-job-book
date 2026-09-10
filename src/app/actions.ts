@@ -25,6 +25,8 @@ import {
   getRecurringById,
   isUuid,
   issueRecurringInvoice,
+  listCustomers,
+  listJobs,
   listRateItems,
   recordInvoicePayment,
   syncJobStatus,
@@ -45,8 +47,11 @@ import {
   recurringInvoiceLines,
   recurringInvoices,
 } from "@/db/schema";
-import { seedDemo } from "@/db/seed";
+import { insertDemoLedger, seedDemo } from "@/db/seed";
+import { randomUUID } from "node:crypto";
 import { canLoadDemo, authConfigured, trialWriteAllowed } from "@/lib/ledger/auth";
+import { demoSeed } from "@/data/demo-seed";
+import { canApplySampleBooks, remapDemoSeed } from "@/lib/ledger/templates";
 import { resolveAuthUser } from "@/lib/session";
 import {
   parseAmountKind,
@@ -231,6 +236,75 @@ export async function loadDemoAction() {
     redirect("/?error=db");
   }
   revalidatePath("/");
+  redirect("/");
+}
+
+export async function applySampleBooksAction() {
+  if (!authConfigured()) {
+    redirect("/?error=auth");
+  }
+  const db = requireDb();
+  const user = await resolveAuthUser();
+  if (!user) {
+    redirect("/sign-in");
+  }
+  if (
+    !trialWriteAllowed({
+      isAdmin: user.isAdmin,
+      trialStartedAt: user.trialStartedAt,
+      now: new Date(),
+    })
+  ) {
+    redirect("/?error=trial");
+  }
+  const existing = await getOrgForUser(db, user.id);
+  if (existing) {
+    const [jobList, customerList, rateList] = await Promise.all([
+      listJobs(db, existing.id),
+      listCustomers(db, existing.id),
+      listRateItems(db, existing.id),
+    ]);
+    if (
+      !canApplySampleBooks({
+        authOn: true,
+        trialWriteAllowed: true,
+        jobCount: jobList.length,
+        customerCount: customerList.length,
+        rateCount: rateList.length,
+      })
+    ) {
+      redirect("/?error=template");
+    }
+  }
+  const orgId = existing?.id ?? randomUUID();
+  const remapped = remapDemoSeed(demoSeed, {
+    orgId,
+    nextId: () => randomUUID(),
+    nextShareToken: () => generateShareToken(),
+  });
+  if (!remapped) {
+    redirect("/?error=template");
+  }
+  try {
+    if (existing) {
+      await db
+        .update(orgs)
+        .set({
+          nextQuoteSeq: Math.max(existing.nextQuoteSeq, remapped.org.nextQuoteSeq),
+          nextInvoiceSeq: Math.max(existing.nextInvoiceSeq, remapped.org.nextInvoiceSeq),
+          nextCreditSeq: Math.max(existing.nextCreditSeq, remapped.org.nextCreditSeq),
+        })
+        .where(eq(orgs.id, existing.id));
+      await insertDemoLedger(db, remapped, { insertOrg: false });
+    } else {
+      await insertDemoLedger(db, remapped, { insertOrg: true });
+      await db.insert(orgMembers).values({ orgId, userId: user.id });
+    }
+  } catch {
+    redirect("/?error=db");
+  }
+  revalidatePath("/");
+  revalidatePath("/", "layout");
   redirect("/");
 }
 

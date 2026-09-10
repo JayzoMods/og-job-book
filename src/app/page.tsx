@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import {
+  applySampleBooksAction,
   createJobAction,
   deleteRateItemAction,
   issueRecurringAction,
@@ -11,7 +12,9 @@ import {
   saveRateItemAction,
 } from "@/app/actions";
 import { HarbourScene } from "@/components/brand-mark";
+import { FormFillTemplates } from "@/components/form-fill";
 import { OrgAbnLookup } from "@/components/org-abn-lookup";
+import { PendingSubmit } from "@/components/pending-submit";
 import { StatusPill, jobAccent } from "@/components/status-pill";
 import { TourStartButton } from "@/components/tour-start-button";
 import { loadDb } from "@/db/ready";
@@ -26,6 +29,7 @@ import { PAYMENT_TERMS_OPTIONS, parsePaymentTermsDays, paymentTermsLabel } from 
 import { parseRetentionPercent, RETENTION_PERCENT_OPTIONS } from "@/lib/ledger/claim";
 import { REPORT_TYPE_OPTIONS } from "@/lib/ledger/inspection";
 import { canLoadDemo, authConfigured } from "@/lib/ledger/auth";
+import { canApplySampleBooks, JOB_FORM_TEMPLATES, ORG_FORM_TEMPLATES } from "@/lib/ledger/templates";
 import { formatIsoDateAu } from "@/lib/ledger/print";
 import {
   parseRecurringFrequency,
@@ -53,11 +57,13 @@ const ERRORS: Record<string, string> = {
   gst:
     "GST quarter must be a calendar quarter (YYYY-MM or a day in that quarter). Empty is this quarter in Australia/Sydney. This report is not a BAS and does not lodge.",
   auth:
-    "Load demo is not available while sign-in is on. It would reset every organisation.",
+    "Load demo is not available while sign-in is on. It would reset every organisation. Use Fill sample books on this account instead.",
   member:
     "Save the organisation after you sign in.",
   trial:
     "This 24-hour trial has ended. You can still read the books. Writes are locked.",
+  template:
+    "Sample books can only fill an empty account. This organisation already has customers, rates, or jobs.",
 };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -84,6 +90,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const authOn = authConfigured();
   const showLoadDemo = canLoadDemo(authOn);
   const trialLocked = state.ok && authOn && !state.trialWriteAllowed && Boolean(state.userId);
+  const showSampleBooks =
+    state.ok &&
+    canApplySampleBooks({
+      authOn,
+      trialWriteAllowed: !trialLocked,
+      jobCount: jobList.length,
+      customerCount: customerList.length,
+      rateCount: rateList.length,
+    });
   const redisOn = queueConfigured();
   const dueRecurring = recurringList.filter((row) =>
     recurringIsDue(
@@ -130,14 +145,30 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   Load demo
                 </button>
               </form>
-            ) : !org ? (
+            ) : null}
+            {showSampleBooks ? (
+              <form action={applySampleBooksAction} data-tour="fill-template">
+                <PendingSubmit
+                  idle="Fill sample books"
+                  busy="Filling books…"
+                  className="btn btn-primary"
+                />
+              </form>
+            ) : null}
+            {authOn && !org && !showSampleBooks ? (
               <p className="text-sm text-muted">
-                Save the organisation below for this signed-in user. Load demo stays off so
-                it cannot wipe other orgs.
+                Save the organisation below for this signed-in user.
               </p>
             ) : null}
             <TourStartButton label="How it works" />
           </div>
+          {showSampleBooks ? (
+            <p className="mt-3 max-w-2xl text-sm text-muted">
+              Fill sample books copies a fictional inspection ledger onto this account — jobs,
+              quotes, and invoices with GST on the document. It does not wipe other
+              organisations. Or pick a template on the organisation form.
+            </p>
+          ) : null}
         </div>
         <div className="relative z-10 mx-auto w-full max-w-sm lg:max-w-none">
           <HarbourScene className="h-auto w-full" />
@@ -250,7 +281,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <div className="surface p-6" data-tour="jobs">
             <h2 className="font-display text-2xl">Jobs</h2>
             {jobList.length === 0 ? (
-              <p className="mt-3 text-muted">No jobs yet. Load demo or create one.</p>
+              <p className="mt-3 text-muted">No jobs yet. Use a template or create one.</p>
             ) : (
               <ul className="mt-4 grid gap-3">
                 {jobList.map((job) => (
@@ -279,7 +310,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {db ? (
         <section id="organisation" className="surface p-6" data-tour="organisation">
           <h2 className="font-display text-2xl">Organisation</h2>
-          <form action={saveOrgAction} className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3">
+            <FormFillTemplates
+              formId="organisation-form"
+              templates={ORG_FORM_TEMPLATES}
+              legend="Fill a template, then save."
+            />
+          </div>
+          <form
+            id="organisation-form"
+            action={saveOrgAction}
+            className="mt-4 grid gap-3 sm:grid-cols-2"
+          >
             <label className="text-sm">
               Business name
               <input
@@ -769,6 +811,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
           <section className="surface p-6" id="create-job-section" data-tour="create-job">
             <h2 className="font-display text-2xl">Create a job</h2>
+            <div className="mt-3">
+              <FormFillTemplates
+                formId="create-job"
+                templates={JOB_FORM_TEMPLATES}
+                legend="Fill a job template, then create."
+              />
+            </div>
             <form
               id="create-job"
               action={createJobAction}

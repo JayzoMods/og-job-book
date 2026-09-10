@@ -57,12 +57,21 @@ describe("tour steps", () => {
 
   it("uses a short signed-in catalog that stays on home", () => {
     const setup = tourCatalogSteps("account-setup");
-    expect(setup.map((step) => step.id)).toEqual(["welcome", "organisation", "wrap"]);
+    expect(setup.map((step) => step.id)).toEqual([
+      "welcome",
+      "fill-template",
+      "organisation",
+      "wrap",
+    ]);
     expect(setup.every((step) => step.path === "/")).toBe(true);
-    expect(setup[0]?.body).toMatch(/Save the organisation/i);
+    expect(setup[0]?.body).toMatch(/Fill sample books/i);
     expect(setup.at(-1)?.body).not.toMatch(/Load demo/i);
-    expect(adjacentTourStep("welcome", 1, setup)?.id).toBe("organisation");
-    expect(tourStepNumber("organisation", setup)).toBe(2);
+    expect(adjacentTourStep("welcome", 1, setup)?.id).toBe("fill-template");
+    expect(tourStepNumber("organisation", setup)).toBe(3);
+
+    const demo = tourCatalogSteps("demo");
+    expect(demo.map((step) => step.id)).not.toContain("fill-template");
+    expect(demo[1]?.id).toBe("load-demo");
 
     const ledger = tourCatalogSteps("account-ledger");
     expect(ledger.map((step) => step.id)).not.toContain("load-demo");

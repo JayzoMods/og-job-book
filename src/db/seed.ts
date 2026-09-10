@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { demoSeed } from "../data/demo-seed";
+import { demoSeed, type DemoSeed } from "../data/demo-seed";
 import type { AppDb } from "./client";
 import {
   creditNoteLines,
@@ -17,39 +17,34 @@ import {
   recurringInvoices,
 } from "./schema";
 
-export async function seedDemo(db: AppDb): Promise<string> {
-  await db.execute(
-    sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, recurring_invoice_lines, recurring_invoices, jobs, customers, rate_card_items, org_members, orgs restart identity cascade`,
-  );
-  try {
-    await db.execute(
-      sql`truncate table trial_ip_locks, auth_sessions, auth_users restart identity cascade`,
-    );
-  } catch {
-    // 0004 not applied yet
+export async function insertDemoLedger(
+  db: AppDb,
+  seed: DemoSeed,
+  options: { insertOrg: boolean },
+): Promise<void> {
+  if (options.insertOrg) {
+    await db.insert(orgs).values({
+      id: seed.org.id,
+      name: seed.org.name,
+      abn: seed.org.abn,
+      gstRegistered: seed.org.gstRegistered,
+      address: seed.org.address,
+      paymentTermsDays: seed.org.paymentTermsDays,
+      accountName: seed.org.accountName,
+      bsb: seed.org.bsb,
+      accountNumber: seed.org.accountNumber,
+      payId: seed.org.payId,
+      retentionPercent: seed.org.retentionPercent,
+      nextQuoteSeq: seed.org.nextQuoteSeq,
+      nextInvoiceSeq: seed.org.nextInvoiceSeq,
+      nextCreditSeq: seed.org.nextCreditSeq,
+    });
   }
 
-  await db.insert(orgs).values({
-    id: demoSeed.org.id,
-    name: demoSeed.org.name,
-    abn: demoSeed.org.abn,
-    gstRegistered: demoSeed.org.gstRegistered,
-    address: demoSeed.org.address,
-    paymentTermsDays: demoSeed.org.paymentTermsDays,
-    accountName: demoSeed.org.accountName,
-    bsb: demoSeed.org.bsb,
-    accountNumber: demoSeed.org.accountNumber,
-    payId: demoSeed.org.payId,
-    retentionPercent: demoSeed.org.retentionPercent,
-    nextQuoteSeq: demoSeed.org.nextQuoteSeq,
-    nextInvoiceSeq: demoSeed.org.nextInvoiceSeq,
-    nextCreditSeq: demoSeed.org.nextCreditSeq,
-  });
-
   await db.insert(customers).values(
-    demoSeed.customers.map((customer) => ({
+    seed.customers.map((customer) => ({
       id: customer.id,
-      orgId: demoSeed.org.id,
+      orgId: seed.org.id,
       name: customer.name,
       suburb: customer.suburb,
       phone: customer.phone,
@@ -58,9 +53,9 @@ export async function seedDemo(db: AppDb): Promise<string> {
   );
 
   await db.insert(jobs).values(
-    demoSeed.jobs.map((job) => ({
+    seed.jobs.map((job) => ({
       id: job.id,
-      orgId: demoSeed.org.id,
+      orgId: seed.org.id,
       customerId: job.customerId,
       description: job.description,
       notes: job.notes,
@@ -73,7 +68,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
     })),
   );
 
-  for (const quote of demoSeed.quotes) {
+  for (const quote of seed.quotes) {
     await db.insert(quotes).values({
       id: quote.id,
       jobId: quote.jobId,
@@ -99,7 +94,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
     );
   }
 
-  for (const invoice of demoSeed.invoices) {
+  for (const invoice of seed.invoices) {
     await db.insert(invoices).values({
       id: invoice.id,
       jobId: invoice.jobId,
@@ -129,7 +124,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
   }
 
   await db.insert(payments).values(
-    demoSeed.payments.map((payment) => ({
+    seed.payments.map((payment) => ({
       id: payment.id,
       invoiceId: payment.invoiceId,
       amountCents: payment.amountCents,
@@ -138,7 +133,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
     })),
   );
 
-  for (const note of demoSeed.creditNotes) {
+  for (const note of seed.creditNotes) {
     await db.insert(creditNotes).values({
       id: note.id,
       invoiceId: note.invoiceId,
@@ -163,9 +158,9 @@ export async function seedDemo(db: AppDb): Promise<string> {
   }
 
   await db.insert(rateCardItems).values(
-    demoSeed.rateCard.map((item) => ({
+    seed.rateCard.map((item) => ({
       id: item.id,
-      orgId: demoSeed.org.id,
+      orgId: seed.org.id,
       description: item.description,
       unit: item.unit,
       unitPriceCents: item.unitPriceCents,
@@ -176,7 +171,7 @@ export async function seedDemo(db: AppDb): Promise<string> {
     })),
   );
 
-  for (const template of demoSeed.recurringInvoices) {
+  for (const template of seed.recurringInvoices) {
     await db.insert(recurringInvoices).values({
       id: template.id,
       jobId: template.jobId,
@@ -199,6 +194,20 @@ export async function seedDemo(db: AppDb): Promise<string> {
       })),
     );
   }
+}
 
+export async function seedDemo(db: AppDb): Promise<string> {
+  await db.execute(
+    sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, recurring_invoice_lines, recurring_invoices, jobs, customers, rate_card_items, org_members, orgs restart identity cascade`,
+  );
+  try {
+    await db.execute(
+      sql`truncate table trial_ip_locks, auth_sessions, auth_users restart identity cascade`,
+    );
+  } catch {
+    // 0004 not applied yet
+  }
+
+  await insertDemoLedger(db, demoSeed, { insertOrg: true });
   return demoSeed.org.id;
 }

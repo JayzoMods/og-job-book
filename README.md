@@ -2,13 +2,13 @@
 
 Job → quote → invoice → record payment, with Australian ABN checksum and GST totals on the documents. Public portfolio web app for [Jayden O'Grady](https://ogdigitaldesigns.com.au) / OG Digital Designs.
 
-**Live demo (no login):** [https://og-job-book.vercel.app](https://og-job-book.vercel.app) — click **Load demo**. Source: [github.com/JayzoMods/og-job-book](https://github.com/JayzoMods/og-job-book).
+**Live demo:** [https://og-job-book.vercel.app](https://og-job-book.vercel.app). With sign-in off, click **Load demo**. With sign-in on, create an account and click **Fill sample books** (that account only). Source: [github.com/JayzoMods/og-job-book](https://github.com/JayzoMods/og-job-book).
 
 This is **not** ServiceM8, not a BAS agent, not tax advice, and it does not lodge with the ATO.
 
 ## What it does
 
-1. Load a seeded fictional Sydney inspection org (or create jobs yourself).
+1. Load a seeded fictional Sydney inspection org (**Load demo** without sign-in, or **Fill sample books** on a signed-in account). Organisation and job forms also have fill templates. Or create jobs yourself.
 2. Add line items on a quote: quantity, unit (each, hours, or m²), unit price, tax code (`GST` | `GST_FREE` | `BAS_EXCLUDED` | `INPUT_TAXED`). Jobs belong to a customer (name, suburb, optional phone and email). Optional inspection fields (property, vendor, purchaser, report type) print on the quote and invoice. Job notes are internal and are not printed. This app does not call or SMS. Email of a sent quote or live invoice is off until `RESEND_API_KEY` and `EMAIL_FROM` are set. Duplicate job copies the customer, description, notes, and inspection fields onto a new enquiry. Revise quote copies a sent quote into a new numbered draft. An organisation rate card holds sell prices you can drop onto a quote (qty 1). Optional cost on a rate or quote line shows markup as (sell − cost) ÷ cost. Cost is not printed.
 3. Documents show GST, GST-free, and total. Inclusive GST is 1/11 (nearest cent). Exclusive is 10%. Each GST line shows that proof. If the org is not GST registered, GST is not charged. Quotes are numbered `Q-0001`, invoices `INV-0001`, credit notes `CN-0001`. Quotes have a valid-until date. Invoices use the org payment terms (due on receipt, 7, 14, 30, or 60 days) and flag overdue when unpaid past the due date. A credit note reduces the amount owing on an invoice (same GST line model). It is not a refund and does not lodge a BAS. Deposits and progress claims bill a percent of an accepted quote as one GST-inclusive line. Variations are extra lines. Retention is a hold, not a GST adjustment. Print a customer statement of account (not a tax invoice) and a remittance advice for a recorded payment (not Confirmation of Payee). Print a GST quarter report of sales GST by invoice date (not a BAS, not lodgement).
 4. ABN on the quote/invoice uses the ABR modulus-89 checksum. Invalid checksums are flagged in plain English. Optional live ABR lookup of the organisation ABN (entity name and GST date) when `ABR_GUID` is set. One ABN, not a bulk list. Checksum still runs when the GUID is unset.
@@ -33,7 +33,7 @@ npm run dev
 
 Schema lives in `src/db/schema.ts`. `npm run db:generate` writes drizzle-kit SQL and `drizzle/meta/_journal.json`. `npm run db:apply` applies that journal (same migrator as `drizzle-kit migrate`). `npm run db:check` fails if schema and journal diverge. Empty Postgres (CI, new Docker volume) runs the SQL. A local database that already has tables from the old apply script is recorded on the journal once, then later generates apply as diffs.
 
-Open [http://localhost:3000](http://localhost:3000). Click **Load demo** (safe to click again — it resets the demo data). `npm run test:e2e` needs Postgres (same as Load demo). Locally it reuses `npm run dev` on port 3000 if that server is already up. GitHub Actions runs it against `npm run start` after `npm run build`.
+Open [http://localhost:3000](http://localhost:3000). Without sign-in, click **Load demo** (safe to click again — it resets the demo data). With `AUTH_SECRET` set, **Fill sample books** copies that ledger onto the signed-in account only. `npm run test:e2e` needs Postgres (same as Load demo). Locally it reuses `npm run dev` on port 3000 if that server is already up. GitHub Actions runs it against `npm run start` after `npm run build`.
 
 Postgres is on host port **5433** so it can sit beside other local databases on 5432.
 

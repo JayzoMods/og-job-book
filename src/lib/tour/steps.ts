@@ -26,7 +26,15 @@ export const TOUR_STEPS = [
     body: "No login. Load demo fills a fictional Sydney inspection business — Harbourline Inspections — so you can open real jobs, quotes, and invoices instead of an empty book.",
     target: "[data-tour='load-demo']",
     path: "/",
-    missing: "Load demo is hidden when sign-in is on. The rest of the tour still works on the jobs list.",
+    missing: "Load demo is hidden when sign-in is on. Use Fill sample books on a signed-in account, or create a job.",
+  },
+  {
+    id: "fill-template",
+    title: "Fill sample books",
+    body: "One click copies a fictional inspection ledger onto this account — jobs, quotes, and invoices with GST on the document. It does not wipe other organisations. Organisation and job forms also have templates if you want to type less.",
+    target: "[data-tour='fill-template']",
+    path: "/",
+    missing: "Fill sample books appears on a signed-in account that still has empty books.",
   },
   {
     id: "glance",
@@ -162,7 +170,7 @@ export type TourStepId = (typeof TOUR_STEPS)[number]["id"];
 
 export type TourCatalog = "demo" | "account-setup" | "account-ledger";
 
-const ACCOUNT_SETUP_IDS = ["welcome", "organisation", "wrap"] as const;
+const ACCOUNT_SETUP_IDS = ["welcome", "fill-template", "organisation", "wrap"] as const;
 const ACCOUNT_LEDGER_IDS = [
   "welcome",
   "glance",
@@ -177,9 +185,9 @@ const ACCOUNT_LEDGER_IDS = [
 ] as const;
 
 const ACCOUNT_WELCOME_BODY =
-  "OG Job Book follows one path: job → quote → invoice → record payment. Books stay on this account. Save the organisation to start. A new account gets 24 hours. Not tax advice.";
+  "OG Job Book follows one path: job → quote → invoice → record payment. Books stay on this account. Fill sample books, or save the organisation to start. A new account gets 24 hours. Not tax advice.";
 const ACCOUNT_WRAP_BODY =
-  "Save the organisation if you have not, then create a job → quote → invoice → record payment. Print stays A4. This is not tax advice, and it does not lodge a BAS.";
+  "Fill sample books if the ledger is empty, or save the organisation and create a job → quote → invoice → record payment. Print stays A4. This is not tax advice, and it does not lodge a BAS.";
 
 export function detectTourCatalog(): TourCatalog {
   if (typeof document === "undefined") {
@@ -197,7 +205,7 @@ export function detectTourCatalog(): TourCatalog {
 export function tourCatalogSteps(catalog: TourCatalog): TourStep[] {
   const ids =
     catalog === "demo"
-      ? TOUR_STEPS.map((step) => step.id)
+      ? TOUR_STEPS.map((step) => step.id).filter((id) => id !== "fill-template")
       : catalog === "account-setup"
         ? ACCOUNT_SETUP_IDS
         : ACCOUNT_LEDGER_IDS;

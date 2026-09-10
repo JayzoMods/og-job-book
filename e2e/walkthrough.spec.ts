@@ -43,6 +43,11 @@ test.describe("product walkthrough", () => {
         dialog.getByRole("heading", { name: "Start from a seeded org" }),
       ).toBeVisible();
       await expect(page.locator("[data-tour='load-demo']")).toBeVisible();
+    } else if (await page.locator("form[data-tour='fill-template']").count()) {
+      await expect(page).toHaveURL(/\?tour=fill-template/);
+      await expect(
+        dialog.getByRole("heading", { name: "Fill sample books" }),
+      ).toBeVisible();
     } else {
       await expect(page).toHaveURL(/\?tour=organisation/);
       await expect(
