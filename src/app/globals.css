@@ -327,7 +327,7 @@ footer {
 
 .site-nav-links {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.15rem;
@@ -335,10 +335,11 @@ footer {
 
 .nav-link {
   border-radius: 999px;
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem 0.55rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--muted);
+  white-space: nowrap;
   transition:
     color 0.18s ease,
     background 0.18s ease;

@@ -651,11 +651,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 invoices when connected.
               </li>
             </ul>
-            <p className="mt-3">
-              <Link className="text-navy underline-offset-2 hover:underline" href="/openapi.yaml">
-                OpenAPI
-              </Link>
-            </p>
           </section>
 
           <section className="surface p-6" id="rates" data-tour="rates">
