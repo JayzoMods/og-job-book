@@ -31,6 +31,7 @@ import {
   issueRecurringAction,
 } from "@/app/actions";
 import { DocumentPanel, LineFields, MarkupNote } from "@/components/document-panel";
+import { PendingSubmit } from "@/components/pending-submit";
 import { QuoteCompose } from "@/components/quote-compose";
 import { ShareLinkCopy } from "@/components/share-link-copy";
 import { StatusPill } from "@/components/status-pill";
@@ -237,16 +238,20 @@ export default async function JobPage({
             </Link>
             <form action={duplicateJobAction}>
               <input type="hidden" name="jobId" value={job.id} />
-              <button type="submit" className="btn btn-ghost">
-                Duplicate job
-              </button>
+              <PendingSubmit
+                idle="Duplicate job"
+                busy="Duplicating…"
+                className="btn btn-ghost"
+              />
             </form>
             {job.status !== "paid" && job.status !== "cancelled" ? (
               <form action={cancelJobAction}>
                 <input type="hidden" name="jobId" value={job.id} />
-                <button type="submit" className="btn btn-ghost">
-                  Cancel job
-                </button>
+                <PendingSubmit
+                  idle="Cancel job"
+                  busy="Cancelling…"
+                  className="btn btn-ghost"
+                />
               </form>
             ) : null}
           </div>
@@ -326,9 +331,11 @@ export default async function JobPage({
             </select>
           </label>
           <div>
-            <button type="submit" className="btn btn-ghost">
-              Save inspection
-            </button>
+          <PendingSubmit
+            idle="Save inspection"
+            busy="Saving…"
+            className="btn btn-ghost"
+          />
           </div>
         </form>
       </section>
@@ -350,9 +357,11 @@ export default async function JobPage({
             />
           </label>
           <div>
-            <button type="submit" className="btn btn-ghost">
-              Save notes
-            </button>
+          <PendingSubmit
+            idle="Save notes"
+            busy="Saving…"
+            className="btn btn-ghost"
+          />
           </div>
         </form>
       </section>
@@ -448,9 +457,11 @@ export default async function JobPage({
                         </label>
                       </div>
                       <LineFields lines={template.lines} />
-                      <button type="submit" className="btn btn-ghost">
-                        Save template
-                      </button>
+                      <PendingSubmit
+                        idle="Save template"
+                        busy="Saving…"
+                        className="btn btn-ghost"
+                      />
                     </form>
                   </div>
                 ) : null
@@ -460,9 +471,11 @@ export default async function JobPage({
                 <form action={issueRecurringAction}>
                   <input type="hidden" name="jobId" value={job.id} />
                   <input type="hidden" name="recurringId" value={template.id} />
-                  <button type="submit" className="btn btn-primary">
-                    {due ? "Issue due invoice" : "Issue next invoice"}
-                  </button>
+                  <PendingSubmit
+                    idle={due ? "Issue due invoice" : "Issue next invoice"}
+                    busy="Issuing…"
+                    className="btn btn-primary"
+                  />
                 </form>
               ) : null}
               {job.status !== "cancelled" ? (
@@ -475,16 +488,20 @@ export default async function JobPage({
                       name="status"
                       value={paused ? "active" : "paused"}
                     />
-                    <button type="submit" className="btn btn-ghost">
-                      {paused ? "Resume" : "Pause"}
-                    </button>
+                    <PendingSubmit
+                      idle={paused ? "Resume" : "Pause"}
+                      busy={paused ? "Resuming…" : "Pausing…"}
+                      className="btn btn-ghost"
+                    />
                   </form>
                   <form action={deleteRecurringAction}>
                     <input type="hidden" name="jobId" value={job.id} />
                     <input type="hidden" name="recurringId" value={template.id} />
-                    <button type="submit" className="btn btn-ghost">
-                      Delete template
-                    </button>
+                    <PendingSubmit
+                      idle="Delete template"
+                      busy="Deleting…"
+                      className="btn btn-ghost"
+                    />
                   </form>
                 </>
               ) : null}
@@ -522,9 +539,11 @@ export default async function JobPage({
               </label>
             </div>
             <LineFields />
-            <button type="submit" className="btn btn-ghost">
-              Save template
-            </button>
+            <PendingSubmit
+              idle="Save template"
+              busy="Saving…"
+              className="btn btn-ghost"
+            />
           </form>
         ) : (
           <p className="text-muted">This job is cancelled. No new recurring invoices.</p>
@@ -637,9 +656,11 @@ export default async function JobPage({
                               required
                             />
                           </label>
-                          <button type="submit" className="btn btn-ghost">
-                            Issue deposit
-                          </button>
+                          <PendingSubmit
+                            idle="Issue deposit"
+                            busy="Issuing…"
+                            className="btn btn-ghost"
+                          />
                         </form>
                         <form action={issueClaimAction} className="space-y-2">
                           <input type="hidden" name="quoteId" value={quote.id} />
@@ -655,9 +676,11 @@ export default async function JobPage({
                               required
                             />
                           </label>
-                          <button type="submit" className="btn btn-ghost">
-                            Issue progress claim
-                          </button>
+                          <PendingSubmit
+                            idle="Issue progress claim"
+                            busy="Issuing…"
+                            className="btn btn-ghost"
+                          />
                         </form>
                       </div>
                     ) : null}
@@ -667,9 +690,11 @@ export default async function JobPage({
                         <input type="hidden" name="jobId" value={job.id} />
                         <input type="hidden" name="kind" value="progress" />
                         <input type="hidden" name="remainder" value="yes" />
-                        <button type="submit" className="btn btn-ghost">
-                          Issue remaining {formatAudFromCents(remaining)}
-                        </button>
+                        <PendingSubmit
+                          idle={`Issue remaining ${formatAudFromCents(remaining)}`}
+                          busy="Issuing…"
+                          className="btn btn-ghost"
+                        />
                       </form>
                     ) : null}
                     <form action={issueVariationAction} className="space-y-3">
@@ -680,9 +705,11 @@ export default async function JobPage({
                         remaining.
                       </p>
                       <LineFields />
-                      <button type="submit" className="btn btn-ghost">
-                        Issue variation
-                      </button>
+                      <PendingSubmit
+                        idle="Issue variation"
+                        busy="Issuing…"
+                        className="btn btn-ghost"
+                      />
                     </form>
                     {held > 0 ? (
                       <form
@@ -702,9 +729,11 @@ export default async function JobPage({
                           />
                         </label>
                         <div className="flex items-end">
-                          <button type="submit" className="btn btn-ghost w-full">
-                            Issue retention release
-                          </button>
+                        <PendingSubmit
+                          idle="Issue retention release"
+                          busy="Issuing…"
+                          className="btn btn-ghost w-full"
+                        />
                         </div>
                       </form>
                     ) : null}
@@ -726,9 +755,11 @@ export default async function JobPage({
                     />
                   </label>
                   <LineFields lines={quote.lines} showCost />
-                  <button type="submit" className="btn btn-ghost">
-                    Save line changes
-                  </button>
+                  <PendingSubmit
+                    idle="Save line changes"
+                    busy="Saving…"
+                    className="btn btn-ghost"
+                  />
                 </form>
                 {rateItems.length > 0 ? (
                   <form action={appendRateItemsAction} className="space-y-2">
@@ -751,9 +782,11 @@ export default async function JobPage({
                         </li>
                       ))}
                     </ul>
-                    <button type="submit" className="btn btn-ghost">
-                      Add selected rates
-                    </button>
+                    <PendingSubmit
+                      idle="Add selected rates"
+                      busy="Adding…"
+                      className="btn btn-ghost"
+                    />
                   </form>
                 ) : null}
                 </>
@@ -778,18 +811,22 @@ export default async function JobPage({
                     <input type="hidden" name="quoteId" value={quote.id} />
                     <input type="hidden" name="jobId" value={job.id} />
                     <input type="hidden" name="rotate" value="1" />
-                    <button type="submit" className="btn btn-ghost">
-                      New share link
-                    </button>
+                    <PendingSubmit
+                      idle="New share link"
+                      busy="Creating…"
+                      className="btn btn-ghost"
+                    />
                   </form>
                 </>
               ) : (
                 <form action={writeQuoteShareAction}>
                   <input type="hidden" name="quoteId" value={quote.id} />
                   <input type="hidden" name="jobId" value={job.id} />
-                  <button type="submit" className="btn btn-ghost">
-                    Create share link
-                  </button>
+                  <PendingSubmit
+                    idle="Create share link"
+                    busy="Creating…"
+                    className="btn btn-ghost"
+                  />
                 </form>
               )
             ) : null}
@@ -798,16 +835,20 @@ export default async function JobPage({
                 <form action={sendQuoteAction}>
                   <input type="hidden" name="quoteId" value={quote.id} />
                   <input type="hidden" name="jobId" value={job.id} />
-                  <button type="submit" className="btn btn-primary">
-                    Send quote
-                  </button>
+                  <PendingSubmit
+                    idle="Send quote"
+                    busy="Sending…"
+                    className="btn btn-primary"
+                  />
                 </form>
                 <form action={deleteDraftQuoteAction}>
                   <input type="hidden" name="quoteId" value={quote.id} />
                   <input type="hidden" name="jobId" value={job.id} />
-                  <button type="submit" className="btn btn-ghost">
-                    Delete draft
-                  </button>
+                  <PendingSubmit
+                    idle="Delete draft"
+                    busy="Deleting…"
+                    className="btn btn-ghost"
+                  />
                 </form>
               </>
             ) : null}
@@ -816,16 +857,20 @@ export default async function JobPage({
                 <form action={acceptQuoteAction}>
                   <input type="hidden" name="quoteId" value={quote.id} />
                   <input type="hidden" name="jobId" value={job.id} />
-                  <button type="submit" className="btn btn-primary">
-                    Accept quote
-                  </button>
+                  <PendingSubmit
+                    idle="Accept quote"
+                    busy="Accepting…"
+                    className="btn btn-primary"
+                  />
                 </form>
                 <form action={declineQuoteAction}>
                   <input type="hidden" name="quoteId" value={quote.id} />
                   <input type="hidden" name="jobId" value={job.id} />
-                  <button type="submit" className="btn btn-ghost">
-                    Decline
-                  </button>
+                  <PendingSubmit
+                    idle="Decline"
+                    busy="Declining…"
+                    className="btn btn-ghost"
+                  />
                 </form>
               </>
             ) : null}
@@ -833,18 +878,22 @@ export default async function JobPage({
               <form action={emailQuoteAction}>
                 <input type="hidden" name="quoteId" value={quote.id} />
                 <input type="hidden" name="jobId" value={job.id} />
-                <button type="submit" className="btn btn-ghost">
-                  Email quote
-                </button>
+                <PendingSubmit
+                  idle="Email quote"
+                  busy="Emailing…"
+                  className="btn btn-ghost"
+                />
               </form>
             ) : null}
             {canRevise ? (
               <form action={reviseQuoteAction}>
                 <input type="hidden" name="quoteId" value={quote.id} />
                 <input type="hidden" name="jobId" value={job.id} />
-                <button type="submit" className="btn btn-ghost">
-                  Revise quote
-                </button>
+                <PendingSubmit
+                  idle="Revise quote"
+                  busy="Revising…"
+                  className="btn btn-ghost"
+                />
               </form>
             ) : null}
             {quote.status === "accepted" &&
@@ -853,9 +902,11 @@ export default async function JobPage({
               <form action={issueInvoiceAction}>
                 <input type="hidden" name="quoteId" value={quote.id} />
                 <input type="hidden" name="jobId" value={job.id} />
-                <button type="submit" className="btn btn-primary">
-                  Issue invoice
-                </button>
+                <PendingSubmit
+                  idle="Issue invoice"
+                  busy="Issuing…"
+                  className="btn btn-primary"
+                />
               </form>
             ) : null}
           </DocumentPanel>
@@ -1016,9 +1067,11 @@ export default async function JobPage({
                           </select>
                         </label>
                         <div className="flex items-end">
-                          <button type="submit" className="btn btn-primary w-full">
-                            Record payment
-                          </button>
+                        <PendingSubmit
+                          idle="Record payment"
+                          busy="Recording…"
+                          className="btn btn-primary w-full"
+                        />
                         </div>
                       </form>
                     ) : null}
@@ -1028,9 +1081,11 @@ export default async function JobPage({
                       <form action={payInvoiceWithCardAction}>
                         <input type="hidden" name="invoiceId" value={invoice.id} />
                         <input type="hidden" name="jobId" value={job.id} />
-                        <button type="submit" className="btn btn-ghost">
-                          Pay with card
-                        </button>
+                        <PendingSubmit
+                          idle="Pay with card"
+                          busy="Redirecting…"
+                          className="btn btn-ghost"
+                        />
                       </form>
                     ) : null}
                     {invoice.status !== "void" && remainingCents > 0 && job.status !== "cancelled" ? (
@@ -1047,18 +1102,22 @@ export default async function JobPage({
                           <input className="field mt-1" name="reason" maxLength={200} />
                         </label>
                         <LineFields lines={invoice.lines} />
-                        <button type="submit" className="btn btn-ghost">
-                          Issue credit note
-                        </button>
+                        <PendingSubmit
+                          idle="Issue credit note"
+                          busy="Issuing…"
+                          className="btn btn-ghost"
+                        />
                       </form>
                     ) : null}
                     {invoice.status !== "void" && invoice.status !== "paid" ? (
                       <form action={voidInvoiceAction}>
                         <input type="hidden" name="invoiceId" value={invoice.id} />
                         <input type="hidden" name="jobId" value={job.id} />
-                        <button type="submit" className="btn btn-ghost">
-                          Void invoice
-                        </button>
+                        <PendingSubmit
+                          idle="Void invoice"
+                          busy="Voiding…"
+                          className="btn btn-ghost"
+                        />
                       </form>
                     ) : null}
                   </div>
@@ -1074,9 +1133,11 @@ export default async function JobPage({
                   <form action={emailInvoiceAction}>
                     <input type="hidden" name="invoiceId" value={invoice.id} />
                     <input type="hidden" name="jobId" value={job.id} />
-                    <button type="submit" className="btn btn-ghost">
-                      Email invoice
-                    </button>
+                    <PendingSubmit
+                      idle="Email invoice"
+                      busy="Emailing…"
+                      className="btn btn-ghost"
+                    />
                   </form>
                 ) : null}
                 {accountingConfigured &&
@@ -1088,18 +1149,22 @@ export default async function JobPage({
                       <input type="hidden" name="id" value={invoice.id} />
                       <input type="hidden" name="provider" value="xero" />
                       <input type="hidden" name="kind" value="invoice" />
-                      <button type="submit" className="btn btn-ghost">
-                        Send to Xero
-                      </button>
+                      <PendingSubmit
+                        idle="Send to Xero"
+                        busy="Sending…"
+                        className="btn btn-ghost"
+                      />
                     </form>
                     <form action={writeAccountingAction}>
                       <input type="hidden" name="jobId" value={job.id} />
                       <input type="hidden" name="id" value={invoice.id} />
                       <input type="hidden" name="provider" value="myob" />
                       <input type="hidden" name="kind" value="invoice" />
-                      <button type="submit" className="btn btn-ghost">
-                        Send to MYOB
-                      </button>
+                      <PendingSubmit
+                        idle="Send to MYOB"
+                        busy="Sending…"
+                        className="btn btn-ghost"
+                      />
                     </form>
                   </>
                 ) : null}
@@ -1120,9 +1185,11 @@ export default async function JobPage({
                         <form action={voidCreditNoteAction}>
                           <input type="hidden" name="creditNoteId" value={note.id} />
                           <input type="hidden" name="jobId" value={job.id} />
-                          <button type="submit" className="btn btn-ghost">
-                            Void credit note
-                          </button>
+                          <PendingSubmit
+                            idle="Void credit note"
+                            busy="Voiding…"
+                            className="btn btn-ghost"
+                          />
                         </form>
                       ) : null}
                     </div>
@@ -1142,9 +1209,11 @@ export default async function JobPage({
                       <input type="hidden" name="id" value={note.id} />
                       <input type="hidden" name="provider" value="xero" />
                       <input type="hidden" name="kind" value="credit" />
-                      <button type="submit" className="btn btn-ghost">
-                        Send to Xero
-                      </button>
+                      <PendingSubmit
+                        idle="Send to Xero"
+                        busy="Sending…"
+                        className="btn btn-ghost"
+                      />
                     </form>
                   ) : null}
                 </DocumentPanel>

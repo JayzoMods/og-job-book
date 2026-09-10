@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { createQuoteAction } from "@/app/actions";
 import { extractLinesAction, type ExtractLinesState } from "@/app/extract-actions";
 import { LineFields } from "@/components/document-panel";
+import { PendingSubmit } from "@/components/pending-submit";
 import { formatAudFromCents } from "@/lib/ledger/money";
 import { unitMarkupText } from "@/lib/ledger/markup";
 import { lineUnitLabel, parseLineUnit } from "@/lib/ledger/tax";
@@ -129,9 +130,11 @@ export function QuoteCompose({
             defaultValue={defaultValidUntil}
           />
         </label>
-        <button type="submit" className="btn btn-primary">
-          Save draft quote
-        </button>
+        <PendingSubmit
+          idle="Save draft quote"
+          busy="Saving…"
+          className="btn btn-primary"
+        />
       </form>
     </article>
   );

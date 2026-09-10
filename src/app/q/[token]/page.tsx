@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import {
   respondToSharedQuoteAction,
 } from "@/app/actions";
+import { PendingSubmit } from "@/components/pending-submit";
 import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
 import { getJob, getOrgById, getQuoteByShareToken } from "@/db/queries";
@@ -115,16 +116,20 @@ export default async function SharedQuotePage({
             <form action={respondToSharedQuoteAction}>
               <input type="hidden" name="token" value={parsed} />
               <input type="hidden" name="decision" value="accept" />
-              <button type="submit" className="btn btn-primary">
-                Accept quote
-              </button>
+              <PendingSubmit
+                idle="Accept quote"
+                busy="Accepting…"
+                className="btn btn-primary"
+              />
             </form>
             <form action={respondToSharedQuoteAction}>
               <input type="hidden" name="token" value={parsed} />
               <input type="hidden" name="decision" value="decline" />
-              <button type="submit" className="btn btn-ghost">
-                Decline
-              </button>
+              <PendingSubmit
+                idle="Decline"
+                busy="Declining…"
+                className="btn btn-ghost"
+              />
             </form>
           </div>
         ) : null}

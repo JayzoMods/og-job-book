@@ -147,18 +147,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {showLoadDemo ? (
               <form action={loadDemoAction} data-tour="load-demo">
-                <button type="submit" className="btn btn-primary">
-                  Load demo
-                </button>
+              <PendingSubmit
+                idle="Load demo"
+                busy="Loading…"
+                className="btn btn-primary"
+              />
               </form>
             ) : null}
             {showSampleBooks ? (
               <form action={applySampleBooksAction} data-tour="fill-template">
-                <PendingSubmit
-                  idle="Fill sample books"
-                  busy="Filling books…"
-                  className="btn btn-primary"
-                />
+              <PendingSubmit
+                idle="Fill sample books"
+                busy="Filling books…"
+                className="btn btn-primary"
+              />
               </form>
             ) : null}
             {authOn && !org && !showSampleBooks ? (
@@ -249,9 +251,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </p>
               {redisOn ? (
                 <form action={queueDueRecurringAction} className="mt-3">
-                  <button type="submit" className="btn btn-ghost">
-                    Queue due invoices
-                  </button>
+                <PendingSubmit
+                  idle="Queue due invoices"
+                  busy="Queuing…"
+                  className="btn btn-ghost"
+                />
                 </form>
               ) : null}
               <ul className="mt-4 grid gap-3">
@@ -278,9 +282,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                         <form action={issueRecurringAction}>
                           <input type="hidden" name="jobId" value={row.jobId} />
                           <input type="hidden" name="recurringId" value={row.id} />
-                          <button type="submit" className="btn btn-primary">
-                            Issue due invoice
-                          </button>
+                          <PendingSubmit
+                            idle="Issue due invoice"
+                            busy="Issuing…"
+                            className="btn btn-primary"
+                          />
                         </form>
                       </div>
                     </li>
@@ -447,11 +453,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </p>
             ) : null}
             <div>
-              <PendingSubmit
-                idle="Save organisation"
-                busy="Saving…"
-                className="btn btn-ghost"
-              />
+            <PendingSubmit
+              idle="Save organisation"
+              busy="Saving…"
+              className="btn btn-ghost"
+            />
             </div>
           </form>
           {org && abrLookupConfigured() ? (
@@ -532,9 +538,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                             ? "1 job"
                             : `${customer.jobCount} jobs`}
                         </p>
-                        <button type="submit" className="btn btn-ghost">
-                          Save customer
-                        </button>
+                        <PendingSubmit
+                          idle="Save customer"
+                          busy="Saving…"
+                          className="btn btn-ghost"
+                        />
                       </div>
                     </form>
                     <form
@@ -556,9 +564,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                         />
                       </label>
                       <div className="flex items-end">
-                        <button type="submit" className="btn btn-ghost w-full">
-                          Print statement
-                        </button>
+                      <PendingSubmit
+                        idle="Print statement"
+                        busy="Opening…"
+                        className="btn btn-ghost w-full"
+                      />
                       </div>
                     </form>
                   </li>
@@ -588,15 +598,27 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 />
               </label>
               <div className="flex flex-wrap gap-2 sm:col-span-2">
-                <button type="submit" className="btn btn-ghost" name="format" value="json">
-                  Download JSON
-                </button>
-                <button type="submit" className="btn btn-ghost" name="format" value="csv">
-                  Download CSV
-                </button>
-                <button type="submit" className="btn btn-ghost" name="format" value="bas-check">
-                  Download BAS Check CSV
-                </button>
+              <PendingSubmit
+                idle="Download JSON"
+                busy="Downloading…"
+                className="btn btn-ghost"
+                name="format"
+                value="json"
+              />
+                <PendingSubmit
+                  idle="Download CSV"
+                  busy="Downloading…"
+                  className="btn btn-ghost"
+                  name="format"
+                  value="csv"
+                />
+                <PendingSubmit
+                  idle="Download BAS Check CSV"
+                  busy="Downloading…"
+                  className="btn btn-ghost"
+                  name="format"
+                  value="bas-check"
+                />
               </div>
             </form>
           </section>
@@ -629,9 +651,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </select>
               </label>
               <div className="flex items-end">
-                <button type="submit" className="btn btn-ghost w-full">
-                  Print GST quarter
-                </button>
+              <PendingSubmit
+                idle="Print GST quarter"
+                busy="Opening…"
+                className="btn btn-ghost w-full"
+              />
               </div>
             </form>
           </section>
@@ -754,16 +778,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                             ? ` · ${unitMarkupText(item.unitPriceCents, item.unitCostCents)}`
                             : ""}
                         </p>
-                        <button type="submit" className="btn btn-ghost">
-                          Save rate
-                        </button>
+                        <PendingSubmit
+                          idle="Save rate"
+                          busy="Saving…"
+                          className="btn btn-ghost"
+                        />
                       </div>
                     </form>
                     <form action={deleteRateItemAction} className="mt-2">
                       <input type="hidden" name="rateItemId" value={item.id} />
-                      <button type="submit" className="btn btn-ghost">
-                        Delete rate
-                      </button>
+                      <PendingSubmit
+                        idle="Delete rate"
+                        busy="Deleting…"
+                        className="btn btn-ghost"
+                      />
                     </form>
                   </li>
                 ))}
@@ -819,9 +847,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </select>
               </label>
               <div>
-                <button type="submit" className="btn btn-ghost">
-                  Add rate
-                </button>
+              <PendingSubmit
+                idle="Add rate"
+                busy="Adding…"
+                className="btn btn-ghost"
+              />
               </div>
             </form>
           </section>
@@ -903,9 +933,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 Inspection fields print on the quote and invoice. Job notes stay internal.
               </p>
               <div>
-                <button type="submit" className="btn btn-primary">
-                  Create job
-                </button>
+              <PendingSubmit
+                idle="Create job"
+                busy="Creating…"
+                className="btn btn-primary"
+              />
               </div>
             </form>
           </section>
