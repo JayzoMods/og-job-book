@@ -5,7 +5,7 @@ export const QUEUE_NAME = "og-job-book";
 export const ISSUE_RECURRING_JOB = "issue-recurring";
 
 export const QUEUE_NOTE =
-  "Queues due recurring invoices on Redis with BullMQ. A worker issues one period at a time (same as the click). Off until REDIS_URL is set. Leave it unset on a public no-login deploy. Not a booking calendar. Not email.";
+  "Queues due recurring invoices. A worker issues one period at a time (same as Issue due invoice). Off until Redis is connected. Not a booking calendar. Not email.";
 
 export type QueueSkipReason = "no_key" | "not_due" | "missing";
 
@@ -242,7 +242,7 @@ export function queueSkipReason(input: {
 
 export function describeQueueSkip(reason: QueueSkipReason): string {
   if (reason === "no_key") {
-    return "The queue is off until REDIS_URL is set on this deploy. Leave it unset on a public no-login site. Issue due invoice still works as a click.";
+    return "Due invoices are not queued here. Use Issue due invoice for one period at a time.";
   }
   if (reason === "missing") {
     return "Recurring invoice not found.";

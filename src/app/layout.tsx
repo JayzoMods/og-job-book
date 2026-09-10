@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
+import { Figtree, Fraunces, IBM_Plex_Mono } from "next/font/google";
+import { AppBackdrop } from "@/components/app-backdrop";
+import { ProductTourHost } from "@/components/product-tour";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { clerkAuthConfigured } from "@/lib/ledger/auth";
 import "./globals.css";
 
-const display = Source_Serif_4({
-  variable: "--font-source",
+const display = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
+  style: ["normal", "italic"],
 });
 
-const sans = IBM_Plex_Sans({
-  variable: "--font-ibm-sans",
+const sans = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 const mono = IBM_Plex_Mono({
@@ -45,7 +47,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-paper font-sans text-ink">{body}</body>
+      <body className="relative flex min-h-full flex-col bg-paper font-sans text-ink">
+        {body}
+      </body>
     </html>
   );
 }
@@ -53,10 +57,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 function openBody(children: React.ReactNode) {
   return (
     <>
+      <AppBackdrop />
       <a className="skip-link print:hidden" href="#main">
         Skip to jobs
       </a>
       <SiteHeader />
+      <ProductTourHost />
       <main id="main" className="flex flex-1 flex-col">
         {children}
       </main>

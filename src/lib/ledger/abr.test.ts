@@ -61,7 +61,7 @@ describe("abrGuidFromEnv", () => {
 describe("describeAbrLookup", () => {
   it("explains the no-guid path", () => {
     expect(describeAbrLookup({ status: "skipped", reason: "no_guid" }, EXAMPLE_ABN)).toMatch(
-      /Live ABR lookup is off/,
+      /not available/,
     );
   });
 

@@ -69,10 +69,10 @@ export default async function SharedQuotePage({
   const error = query.error === "share";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-tour="share-quote">
       {error ? (
         <p
-          className="print-toolbar mx-auto w-full max-w-[210mm] rounded-xl border border-error/40 bg-foam px-4 py-3 text-sm text-error"
+          className="banner banner-error print-toolbar mx-auto w-full max-w-[210mm]"
           role="alert"
         >
           This quote cannot be accepted or declined from the link. Drafts are not

@@ -173,7 +173,7 @@ describe("stripeSkipReason", () => {
   });
 
   it("explains the skip paths without Confirmation of Payee", () => {
-    expect(describeStripeSkip("no_key")).toMatch(/STRIPE_SECRET_KEY/);
+    expect(describeStripeSkip("no_key")).toMatch(/not available/i);
     expect(describeStripeSkip("no_key")).not.toMatch(/Confirmation of Payee/i);
     expect(describeStripeSkip("already_paid")).toMatch(/amount due now/i);
   });

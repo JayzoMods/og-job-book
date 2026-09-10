@@ -33,7 +33,7 @@ export async function extractLinesAction(
       skipped: true,
       lines: prev.lines,
       messages: [
-        "Note or photo → lines is off until AI_GATEWAY_API_KEY is set on this deploy. Type the line items instead.",
+        "Line extract is not available. Type the line items below.",
       ],
       error: null,
     };

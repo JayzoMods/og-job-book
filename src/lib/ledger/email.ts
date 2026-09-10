@@ -125,7 +125,7 @@ export function documentEmailPath(input: {
 
 export function describeEmailSkip(reason: EmailSkipReason): string {
   if (reason === "no_key") {
-    return "Email is off until RESEND_API_KEY and EMAIL_FROM are set on this deploy. Leave those unset on a public no-login site.";
+    return "Email send is not available on this site. Print the document or copy the share link instead.";
   }
   if (reason === "no_email") {
     return "This customer has no email address. Add one on the customer, then try again.";

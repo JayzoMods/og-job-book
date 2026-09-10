@@ -65,36 +65,18 @@ test.describe("recruiter flow", () => {
       .filter({ has: page.getByRole("heading", { name: "Quote Q-0001" }) });
     await expect(quote.getByText("$110.00").first()).toBeVisible();
     await expect(quote.getByText("$1,232.00").first()).toBeVisible();
-    await expect(quote.getByRole("button", { name: "Email quote" })).toBeVisible();
     await expect(quote.getByRole("link", { name: "Open share link" })).toBeVisible();
-    await expect(page.getByText(/Email is off on this deploy/)).toBeVisible();
-
-    await quote.getByRole("button", { name: "Email quote" }).click();
-    await expect(page).toHaveURL(/[?&]error=email/, { timeout: 15_000 });
-    await expect(
-      page.getByRole("alert").filter({ hasText: "RESEND_API_KEY" }),
-    ).toBeVisible();
+    await expect(quote.getByRole("button", { name: "Email quote" })).toHaveCount(0);
+    await expect(page.getByText(/off on this deploy/i)).toHaveCount(0);
 
     await page.goto("/");
     await page.getByRole("link", { name: /Alex Moretti.*invoiced/ }).click();
     const unpaid = page
       .locator("article")
       .filter({ has: page.getByRole("heading", { name: "Invoice INV-0002" }) });
-    await expect(unpaid.getByRole("button", { name: "Pay with card" })).toBeVisible();
-    await expect(page.getByText(/Card pay is off on this deploy/)).toBeVisible();
-    await unpaid.getByRole("button", { name: "Pay with card" }).click();
-    await expect(page).toHaveURL(/[?&]error=stripe/, { timeout: 15_000 });
-    await expect(
-      page.getByRole("alert").filter({ hasText: "STRIPE_SECRET_KEY" }),
-    ).toBeVisible();
-
-    await expect(unpaid.getByRole("button", { name: "Send to Xero" })).toBeVisible();
-    await expect(page.getByText(/Accounting write is off on this deploy/)).toBeVisible();
-    await unpaid.getByRole("button", { name: "Send to Xero" }).click();
-    await expect(page).toHaveURL(/[?&]error=accounting/, { timeout: 15_000 });
-    await expect(
-      page.getByRole("alert").filter({ hasText: "Xero or MYOB tokens" }),
-    ).toBeVisible();
+    await expect(unpaid.getByRole("button", { name: "Pay with card" })).toHaveCount(0);
+    await expect(unpaid.getByRole("button", { name: "Send to Xero" })).toHaveCount(0);
+    await expect(page.getByText(/REDIS_URL|RESEND_API_KEY|STRIPE_SECRET_KEY|XERO_ACCESS_TOKEN/)).toHaveCount(0);
 
     await page.goto("/");
     await page.getByRole("link", { name: /Tom Nguyen.*quoted/ }).click();

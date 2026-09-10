@@ -27,18 +27,16 @@ export function OrgAbnLookup({
   );
   const formatted = abn ? formatAbn(abn) : "not set";
 
+  if (!lookupConfigured) {
+    return null;
+  }
+
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted">
-        Live ABR lookup checks the saved organisation ABN only (one ABN, not a bulk list). It
-        does not change the GST registered checkbox. This is not tax advice.
+        Look up the saved organisation ABN on the ABR. This does not change the GST registered
+        checkbox.
       </p>
-      {!lookupConfigured ? (
-        <p className="text-sm text-muted">
-          Live ABR lookup is off on this deploy (<code className="font-mono">ABR_GUID</code>{" "}
-          unset). Checksum still runs.
-        </p>
-      ) : null}
       <form action={lookupAction} className="flex flex-wrap items-center gap-3" aria-busy={lookupPending}>
         <input type="hidden" name="abn" value={abn} />
         <input type="hidden" name="gstRegistered" value={gstRegistered ? "yes" : "no"} />

@@ -75,7 +75,7 @@ export function describeAbrLookup(lookup: AbrLookup, formattedAbn: string): stri
     if (lookup.reason === "invalid_abn") {
       return `ABN ${abnLabel} does not pass the ABR modulus-89 checksum. Live lookup was not called.`;
     }
-    return `ABN ${abnLabel} passes the checksum. Live ABR lookup is off until ABR_GUID is set on this deploy.`;
+    return `ABN ${abnLabel} passes the checksum. Live lookup on the ABR is not available on this site.`;
   }
 
   if (lookup.status === "error") {

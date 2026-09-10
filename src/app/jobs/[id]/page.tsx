@@ -33,8 +33,10 @@ import {
 import { DocumentPanel, LineFields, MarkupNote } from "@/components/document-panel";
 import { QuoteCompose } from "@/components/quote-compose";
 import { ShareLinkCopy } from "@/components/share-link-copy";
+import { StatusPill } from "@/components/status-pill";
 import { extractAiConfigured } from "@/lib/extract/lines";
 import { loadDb } from "@/db/ready";
+import { DEMO_IDS } from "@/data/demo-seed";
 import {
   getInvoicesForJob,
   getJobInOrg,
@@ -112,11 +114,11 @@ const ERRORS: Record<string, string> = {
   recurring:
     "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue is manual. Cancelled jobs cannot take a new issue.",
   email:
-    "Email needs a customer address, a sent quote or live invoice, and RESEND_API_KEY plus EMAIL_FROM on this deploy. Drafts, superseded quotes, and void invoices are not emailed. Leave the key unset on a public no-login site.",
+    "Email needs a customer address and a sent quote or live invoice. Drafts, superseded quotes, and void invoices are not emailed.",
   stripe:
-    "Card pay needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, a live invoice with amount due now, and an http origin for the return URLs. Drafts and void invoices are not charged. Leave the keys unset on a public no-login site.",
+    "Card pay needs a live invoice with amount due now. Drafts and void invoices are not charged.",
   accounting:
-    "Accounting write needs Xero or MYOB tokens, a sent or paid invoice (or an issued credit note for Xero), and posts the document total — not amount due now. Drafts and void documents are not posted. MYOB is invoices only. Leave the keys unset on a public no-login site.",
+    "Accounting write needs a sent or paid invoice, or an issued credit note for Xero. Drafts and void documents are not posted. MYOB is invoices only.",
   share:
     "Only a sent, accepted, declined, or superseded quote has a share link. Drafts stay in this ledger. The link is not a customer portal.",
 };
@@ -170,16 +172,25 @@ export default async function JobPage({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
+    <div className="page-frame">
       <p>
-        <Link href="/" className="text-sm text-navy underline-offset-2 hover:underline">
+        <Link href="/#jobs" className="text-sm font-semibold text-navy underline-offset-2 hover:underline">
           ← Jobs
         </Link>
       </p>
-      <section className="surface p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="space-y-4" data-tour="job">
+      <nav className="job-toc" aria-label="On this job">
+        <a href="#quotes">Quotes</a>
+        <a href="#invoices">Invoices</a>
+        <a href="#recurring">Recurring</a>
+        <a href="#inspection">Inspection</a>
+        <a href="#job-notes">Notes</a>
+      </nav>
+      <section className="surface surface-hero rise p-6">
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="font-display text-3xl">{job.customerName}</h1>
+            <p className="kicker">Job</p>
+            <h1 className="mt-2 font-display text-3xl sm:text-4xl">{job.customerName}</h1>
             <p className="mt-1 text-muted">
               {job.suburb} · {job.description}
             </p>
@@ -195,28 +206,8 @@ export default async function JobPage({
               </p>
             ))}
             <p className="mt-2 text-sm text-muted">
-              Shown as given. This app does not call or SMS. Email of a sent quote or
-              live invoice uses Resend when configured. Not a mailbox.
+              Phone and email are shown as given.
             </p>
-            {!emailConfigured ? (
-              <p className="mt-2 text-sm text-muted">
-                Email is off on this deploy (<code className="font-mono">RESEND_API_KEY</code>{" "}
-                unset). Leave it unset on a public no-login site.
-              </p>
-            ) : null}
-            {!stripeConfigured ? (
-              <p className="mt-2 text-sm text-muted">
-                Card pay is off on this deploy (<code className="font-mono">STRIPE_SECRET_KEY</code>{" "}
-                unset). Leave it unset on a public no-login site.
-              </p>
-            ) : null}
-            {!accountingConfigured ? (
-              <p className="mt-2 text-sm text-muted">
-                Accounting write is off on this deploy (
-                <code className="font-mono">XERO_ACCESS_TOKEN</code> unset). Leave it unset
-                on a public no-login site. Not Xero OAuth.
-              </p>
-            ) : null}
             {job.duplicatedFromJobId ? (
               <p className="mt-2 text-sm text-muted">
                 Duplicated from an earlier job.{" "}
@@ -230,7 +221,7 @@ export default async function JobPage({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="pill">{job.status}</span>
+            <StatusPill status={job.status} />
             <Link
               href={`/customers/${job.customerId}/statement/print`}
               className="btn btn-ghost"
@@ -254,38 +245,38 @@ export default async function JobPage({
           </div>
         </div>
       </section>
+      </div>
 
       {error ? (
-        <p className="rounded-xl border border-error/40 bg-foam px-4 py-3 text-sm text-error" role="alert">
+        <p className="banner banner-error" role="alert">
           {error}
         </p>
       ) : null}
       {emailed ? (
-        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+        <p className="banner" role="status">
           Emailed the document to the customer address.
         </p>
       ) : null}
       {cardReturned ? (
-        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+        <p className="banner" role="status">
           Returned from Stripe Checkout. The books update when Stripe posts the webhook.
         </p>
       ) : null}
       {accountingWritten ? (
-        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+        <p className="banner" role="status">
           Posted the document to Xero or MYOB. This ledger does not store the remote id.
         </p>
       ) : null}
       {shareReady ? (
-        <p className="rounded-xl border border-line bg-foam px-4 py-3 text-sm" role="status">
+        <p className="banner" role="status">
           Share link updated. The old token no longer opens the quote.
         </p>
       ) : null}
 
-      <section className="surface p-6">
+      <section id="inspection" className="surface job-section p-6" data-tour="inspection">
         <h2 className="font-display text-2xl">Inspection</h2>
         <p className="mt-2 text-sm text-muted">
-          Optional site fields for an inspection job. Printed on the quote and
-          invoice. Not a customer portal, not GPS, and not a booking calendar.
+          Optional site fields for an inspection job. Printed on the quote and invoice.
           Job notes below stay internal.
         </p>
         <form action={saveInspectionAction} className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -335,7 +326,7 @@ export default async function JobPage({
         </form>
       </section>
 
-      <section className="surface p-6">
+      <section id="job-notes" className="surface job-section p-6">
         <h2 className="font-display text-2xl">Job notes</h2>
         <p className="mt-2 text-sm text-muted">
           Internal only. Not printed on the quote or invoice.
@@ -359,13 +350,12 @@ export default async function JobPage({
         </form>
       </section>
 
-      <section className="space-y-4">
+      <section id="recurring" className="job-section space-y-4" data-tour="recurring">
         <h2 className="font-display text-2xl">Recurring invoices</h2>
         <p className="text-sm text-muted">
-          A line template you issue again on a cadence. Not a booking calendar. Issue is a
-          click — issuing does not email. Email the invoice after it exists, when Resend is
-          configured. Changing the template does not rewrite invoices already issued.
-          Retention is not held on these invoices.
+          A line template you issue again on a cadence. Issue one period at a time —
+          issuing does not email. Changing the template does not rewrite invoices already
+          issued. Retention is not held on these invoices.
         </p>
         {recurringList.map((template) => {
           const cadence = parseRecurringFrequency(template.frequency);
@@ -534,7 +524,7 @@ export default async function JobPage({
         )}
       </section>
 
-      <section className="space-y-4">
+      <section id="quotes" className="job-section space-y-4">
         <h2 className="font-display text-2xl">Quotes</h2>
         <p className="text-sm text-muted">
           A sent quote can be opened at a share link without the job URL. Drafts are
@@ -584,6 +574,7 @@ export default async function JobPage({
           return (
           <DocumentPanel
             key={quote.id}
+            tourId={quote.id === DEMO_IDS.quoteMixed ? "quote-gst" : undefined}
             title={`Quote ${quote.docNumber}`}
             status={quoteDocumentStatus(quote.status, quote.validUntil, today)}
             abn={org.abn}
@@ -831,7 +822,7 @@ export default async function JobPage({
                 </form>
               </>
             ) : null}
-            {canEmailDocument("quote", quote.status) ? (
+            {emailConfigured && canEmailDocument("quote", quote.status) ? (
               <form action={emailQuoteAction}>
                 <input type="hidden" name="quoteId" value={quote.id} />
                 <input type="hidden" name="jobId" value={job.id} />
@@ -876,7 +867,7 @@ export default async function JobPage({
         )}
       </section>
 
-      <section className="space-y-4">
+      <section id="invoices" className="job-section space-y-4">
         <h2 className="font-display text-2xl">Invoices and payments</h2>
         {invoiceList.length === 0 ? (
           <p className="text-muted">
@@ -908,6 +899,13 @@ export default async function JobPage({
               <div key={invoice.id} className="space-y-4">
               <DocumentPanel
                 title={invoicePanelTitle(invoice.docNumber, kind)}
+                tourId={
+                  invoice.id === DEMO_IDS.invoiceUnpaid
+                    ? "invoice-due"
+                    : invoice.id === DEMO_IDS.invoice
+                      ? "invoice-paid"
+                      : undefined
+                }
                 status={invoiceDocumentStatus(invoice.status, payState, overdue)}
                 abn={org.abn}
                 gstRegistered={org.gstRegistered}
@@ -936,8 +934,7 @@ export default async function JobPage({
                           ))}
                         </dl>
                         <p className="text-muted">
-                          Shown as given. Not Confirmation of Payee. We do not check this
-                          account.
+                          Shown as given. We do not check this account.
                         </p>
                       </div>
                     ) : null}
@@ -1018,7 +1015,8 @@ export default async function JobPage({
                         </div>
                       </form>
                     ) : null}
-                    {canChargeInvoice(invoice.status, remainingCents) &&
+                    {stripeConfigured &&
+                    canChargeInvoice(invoice.status, remainingCents) &&
                     job.status !== "cancelled" ? (
                       <form action={payInvoiceWithCardAction}>
                         <input type="hidden" name="invoiceId" value={invoice.id} />
@@ -1065,7 +1063,7 @@ export default async function JobPage({
                 >
                   Print / PDF
                 </Link>
-                {canEmailDocument("invoice", invoice.status) ? (
+                {emailConfigured && canEmailDocument("invoice", invoice.status) ? (
                   <form action={emailInvoiceAction}>
                     <input type="hidden" name="invoiceId" value={invoice.id} />
                     <input type="hidden" name="jobId" value={job.id} />
@@ -1074,7 +1072,9 @@ export default async function JobPage({
                     </button>
                   </form>
                 ) : null}
-                {canWriteInvoice(invoice.status) && job.status !== "cancelled" ? (
+                {accountingConfigured &&
+                canWriteInvoice(invoice.status) &&
+                job.status !== "cancelled" ? (
                   <>
                     <form action={writeAccountingAction}>
                       <input type="hidden" name="jobId" value={job.id} />
@@ -1127,7 +1127,9 @@ export default async function JobPage({
                   >
                     Print / PDF
                   </Link>
-                  {canWriteCredit(note.status) && job.status !== "cancelled" ? (
+                  {accountingConfigured &&
+                  canWriteCredit(note.status) &&
+                  job.status !== "cancelled" ? (
                     <form action={writeAccountingAction}>
                       <input type="hidden" name="jobId" value={job.id} />
                       <input type="hidden" name="id" value={note.id} />

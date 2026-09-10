@@ -109,7 +109,7 @@ export function stripeSkipReason(input: {
 
 export function describeStripeSkip(reason: StripeSkipReason): string {
   if (reason === "no_key") {
-    return "Card pay is off until STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are set on this deploy. Leave those unset on a public no-login site.";
+    return "Card pay is not available on this site. Record a transfer or cash payment instead.";
   }
   if (reason === "no_origin") {
     return "Card pay needs an http or https origin for the Stripe return URLs.";

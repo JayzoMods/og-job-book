@@ -182,7 +182,7 @@ export function accountingSkipReason(input: {
 
 export function describeAccountingSkip(reason: AccountingSkipReason): string {
   if (reason === "no_key") {
-    return "Accounting write is off until Xero (XERO_ACCESS_TOKEN and XERO_TENANT_ID) or MYOB (MYOB_ACCESS_TOKEN, MYOB_CLIENT_ID, and MYOB_CF_URI) are set on this deploy. Leave those unset on a public no-login site.";
+    return "Xero and MYOB posting is not available on this site.";
   }
   if (reason === "not_supported") {
     return "MYOB write is a service invoice only. Credit notes go to Xero. Not a cash refund.";

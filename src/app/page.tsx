@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import {
   createJobAction,
   deleteRateItemAction,
@@ -9,7 +10,10 @@ import {
   saveOrgAction,
   saveRateItemAction,
 } from "@/app/actions";
+import { HarbourScene } from "@/components/brand-mark";
 import { OrgAbnLookup } from "@/components/org-abn-lookup";
+import { StatusPill, jobAccent } from "@/components/status-pill";
+import { TourStartButton } from "@/components/tour-start-button";
 import { loadDb } from "@/db/ready";
 import { listCustomers, listJobs, listRateItems, listRecurringForOrg } from "@/db/queries";
 import { formatAbn, isValidAbn } from "@/lib/ledger/abn";
@@ -41,7 +45,7 @@ const ERRORS: Record<string, string> = {
   recurring:
     "A recurring invoice needs a cadence, a next issue date, and at least one complete line. The end date cannot be before the next issue date. Issue from the job page is still a click.",
   queue:
-    "Due invoices are queued with Redis and BullMQ. Off until REDIS_URL is set. Leave it unset on a public no-login deploy. Click Issue due invoice to issue one now. This is not a booking calendar.",
+    "Due invoices cannot be queued here. Issue one due invoice at a time.",
   statement:
     "Statement dates must be calendar days (YYYY-MM-DD). The from date cannot be after the as-at date.",
   export:
@@ -49,9 +53,9 @@ const ERRORS: Record<string, string> = {
   gst:
     "GST quarter must be a calendar quarter (YYYY-MM or a day in that quarter). Empty is this quarter in Australia/Sydney. This report is not a BAS and does not lodge.",
   auth:
-    "Load demo is off while Clerk is on. It would reset every organisation. Leave Clerk keys unset on a public no-login deploy.",
+    "Load demo is not available while sign-in is on. It would reset every organisation.",
   member:
-    "Save the organisation after you sign in. One Clerk user maps to one organisation. Not staff roles.",
+    "Save the organisation after you sign in.",
 };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -87,49 +91,65 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     ),
   );
   const needsSetup = !state.ok;
+  const quotedCount = jobList.filter((job) => job.status === "quoted").length;
+  const invoicedCount = jobList.filter((job) => job.status === "invoiced").length;
+  const paidCount = jobList.filter((job) => job.status === "paid").length;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
-      <section className="surface p-6 sm:p-8">
-        <p className="text-sm font-semibold tracking-wide text-copper">Australian ledger</p>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">
-          Job, quote, invoice — with ABN and GST on the document.
-        </h1>
-        <p className="mt-3 max-w-2xl text-muted">
-          Narrow hire-repo for a small AU trade or inspection business.
-          {authOn
-            ? " Sign in to open your books. Load demo is off while Clerk is on."
-            : " No login. Click Load demo to seed a fictional Sydney inspection org."}{" "}
-          Not ServiceM8, not a BAS agent, and not tax advice.
-        </p>
-        {showLoadDemo ? (
-        <form action={loadDemoAction} className="mt-6">
-          <button type="submit" className="btn btn-primary">
-            Load demo
-          </button>
-        </form>
-        ) : !org ? (
-          <p className="mt-6 text-sm text-muted">
-            Clerk is on. Save the organisation below for this signed-in user. Load demo
-            stays off so it cannot wipe other orgs.
+    <div className="page-frame">
+      <section
+        className="surface surface-hero rise grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_17rem]"
+        data-tour="hero"
+      >
+        <div className="relative z-10">
+          <p className="kicker">Australian ledger</p>
+          <h1 className="mt-3 font-display text-4xl tracking-tight sm:text-5xl">
+            Job, quote, invoice — with ABN and GST on the document.
+          </h1>
+          <p className="mt-4 max-w-2xl text-muted">
+            Narrow ledger for a small AU trade or inspection business.
+            {authOn
+              ? " Sign in to open your books."
+              : " No login. Load demo seeds a fictional Sydney inspection org."}{" "}
+            Not tax advice, and it does not lodge a BAS.
           </p>
-        ) : null}
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            {showLoadDemo ? (
+              <form action={loadDemoAction} data-tour="load-demo">
+                <button type="submit" className="btn btn-primary">
+                  Load demo
+                </button>
+              </form>
+            ) : !org ? (
+              <p className="text-sm text-muted" data-tour="load-demo">
+                Save the organisation below for this signed-in user. Load demo stays off so
+                it cannot wipe other orgs.
+              </p>
+            ) : null}
+            <TourStartButton
+              label="How it works"
+              tourId={showLoadDemo || !org ? undefined : "load-demo"}
+            />
+          </div>
+        </div>
+        <div className="relative z-10 mx-auto w-full max-w-sm lg:max-w-none">
+          <HarbourScene className="h-auto w-full" />
+        </div>
       </section>
 
       {error ? (
-        <p className="rounded-xl border border-error/40 bg-foam px-4 py-3 text-sm text-error" role="alert">
+        <p className="banner banner-error" role="alert">
           {error}
         </p>
       ) : null}
       {queued ? (
-        <p className="rounded-xl border border-navy/20 bg-foam px-4 py-3 text-sm text-muted">
-          Due invoices were queued on Redis. Issue is one period at a time. This is not
-          a booking calendar.
+        <p className="banner" role="status">
+          Due invoices were queued. Each issue is one period.
         </p>
       ) : null}
 
       {needsSetup ? (
-        <section className="surface p-6">
+        <section className="surface rise p-6">
           <h2 className="font-display text-2xl">Set up Postgres</h2>
           <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">
             <li>
@@ -147,8 +167,105 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </section>
       ) : null}
 
+      {db && org ? (
+        <section id="jobs" className="rise-2 flex flex-col gap-4">
+          <div className="glance" data-tour="glance">
+            <div className="surface glance-card">
+              <p className="kicker">Jobs</p>
+              <p className="glance-value mt-2">{jobList.length}</p>
+            </div>
+            <div className="surface glance-card">
+              <p className="kicker">Quoted</p>
+              <p className="glance-value mt-2">{quotedCount}</p>
+            </div>
+            <div className="surface glance-card">
+              <p className="kicker">Invoiced</p>
+              <p className="glance-value mt-2">{invoicedCount}</p>
+            </div>
+            <div className="surface glance-card">
+              <p className="kicker">Paid</p>
+              <p className="glance-value mt-2">{paidCount}</p>
+            </div>
+          </div>
+          {dueRecurring.length > 0 ? (
+            <section className="surface p-6">
+              <h2 className="font-display text-2xl">Due recurring invoices</h2>
+              <p className="mt-2 text-sm text-muted">
+                Issue one period at a time. Issuing does not email the invoice.
+              </p>
+              {redisOn ? (
+                <form action={queueDueRecurringAction} className="mt-3">
+                  <button type="submit" className="btn btn-ghost">
+                    Queue due invoices
+                  </button>
+                </form>
+              ) : null}
+              <ul className="mt-4 grid gap-3">
+                {dueRecurring.map((row) => {
+                  const cadence = parseRecurringFrequency(row.frequency);
+                  return (
+                    <li
+                      key={row.id}
+                      className="job-card surface flex flex-wrap items-center justify-between gap-3 p-4"
+                    >
+                      <div>
+                        <p className="font-semibold">{row.customerName}</p>
+                        <p className="text-sm text-muted">
+                          {row.suburb} · {row.jobDescription} ·{" "}
+                          {cadence ? recurringFrequencyLabel(cadence) : "Recurring"} ·
+                          next {formatIsoDateAu(row.nextIssueOn)} ·{" "}
+                          {formatAudFromCents(row.totals.totalCents)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={`/jobs/${row.jobId}`} className="btn btn-ghost">
+                          Open job
+                        </Link>
+                        <form action={issueRecurringAction}>
+                          <input type="hidden" name="jobId" value={row.jobId} />
+                          <input type="hidden" name="recurringId" value={row.id} />
+                          <button type="submit" className="btn btn-primary">
+                            Issue due invoice
+                          </button>
+                        </form>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+          <div className="surface p-6" data-tour="jobs">
+            <h2 className="font-display text-2xl">Jobs</h2>
+            {jobList.length === 0 ? (
+              <p className="mt-3 text-muted">No jobs yet. Load demo or create one.</p>
+            ) : (
+              <ul className="mt-4 grid gap-3">
+                {jobList.map((job) => (
+                  <li key={job.id}>
+                    <Link
+                      href={`/jobs/${job.id}`}
+                      className="job-card surface flex flex-wrap items-center justify-between gap-3 p-4"
+                      style={{ "--card-accent": jobAccent(job.status) } as CSSProperties}
+                    >
+                      <div>
+                        <p className="font-semibold">{job.customerName}</p>
+                        <p className="text-sm text-muted">
+                          {job.suburb} · {job.description}
+                        </p>
+                      </div>
+                      <StatusPill status={job.status} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      ) : null}
+
       {db ? (
-        <section className="surface p-6">
+        <section id="organisation" className="surface p-6" data-tour="organisation">
           <h2 className="font-display text-2xl">Organisation</h2>
           <form action={saveOrgAction} className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
@@ -254,14 +371,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </label>
             <p className="text-sm text-muted sm:col-span-2">
               If GST registered is off, quotes and invoices do not charge GST. Payment terms
-              set the due date on new invoices. Retention is held on deposit, progress,
-              variation, and full invoices when they are issued. PayID and BSB are shown on
-              invoices only. We do not check the account. This is not Confirmation of Payee
-              and not tax advice.
+              set the due date on new invoices. Retention is held when claims and invoices
+              are issued. PayID and BSB print on invoices as entered — we do not check the
+              account.
             </p>
             {org && !isValidAbn(org.abn) ? (
               <p className="text-sm text-warn sm:col-span-2">
-                ABN checksum does not match ABR modulus 89. Documents will show that flag.
+                This ABN does not pass the Australian checksum. Documents will show that.
               </p>
             ) : null}
             <div>
@@ -270,12 +386,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </button>
             </div>
           </form>
-          {org ? (
+          {org && abrLookupConfigured() ? (
             <div className="mt-4">
               <OrgAbnLookup
                 abn={org.abn}
                 gstRegistered={org.gstRegistered}
-                lookupConfigured={abrLookupConfigured()}
+                lookupConfigured
               />
             </div>
           ) : null}
@@ -284,16 +400,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       {db && org ? (
         <>
-          <section className="surface p-6" id="customers">
+          <section className="surface p-6" id="customers" data-tour="customers">
             <h2 className="font-display text-2xl">Customers</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Jobs belong to a customer (name, suburb, optional phone and email).
-              The same customer can have more than one job. Print a statement of
-              account for the customer — not a tax invoice, not a BAS. Job notes are
-              internal and are not printed. Shown as given — this app does not call or
-              SMS. Email of a sent quote or live invoice is off until RESEND_API_KEY is
-              set. Pay with card is off until STRIPE_SECRET_KEY is set. Not a customer
-              portal.
+              Jobs belong to a customer (name, suburb, optional phone and email). The same
+              customer can have more than one job. Print a statement of account — not a tax
+              invoice. Job notes stay internal. Phone and email are shown as given.
             </p>
             {customerList.length === 0 ? (
               <p className="mt-3 text-muted">
@@ -387,13 +499,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             )}
           </section>
 
-          <section className="surface p-6" id="export">
+          <section className="surface p-6" id="export" data-tour="export">
             <h2 className="font-display text-2xl">Export</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Download the books as JSON or CSV. The BAS Check CSV is sales lines
-              (invoices and credit notes) in BAS Check column order so you can drop
-              the file into that app. This is not a GST risk checker, not a bulk ABR
-              lookup, not Xero, and not a BAS. Job notes and cost are not exported.
+              Download the books as JSON or CSV. The BAS Check CSV is sales lines in that
+              app’s column order. Job notes and cost are not exported. This is not a BAS.
             </p>
             <form method="get" action="/api/export" className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm">
@@ -423,14 +533,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </form>
           </section>
 
-          <section className="surface p-6" id="gst-quarter">
+          <section className="surface p-6" id="gst-quarter" data-tour="gst-quarter">
             <h2 className="font-display text-2xl">GST quarter</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Print sales GST for an ATO quarter (Jul–Sep, Oct–Dec, Jan–Mar,
-              Apr–Jun) by invoice date. Credit notes reduce the totals. Quotes,
-              drafts, and void invoices are not included. Retention is a hold, not
-              a GST adjustment. This is not a BAS, not tax advice, and does not
-              lodge.
+              Print sales GST for an ATO quarter (Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun) by
+              invoice date. Credit notes reduce the totals. Quotes, drafts, and void
+              invoices are not included. Retention is a hold, not a GST adjustment. This
+              is not a BAS and does not lodge.
             </p>
             <form
               method="get"
@@ -461,24 +570,33 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
           <section className="surface p-6" id="api">
             <h2 className="font-display text-2xl">HTTP API</h2>
-            <p className="mt-2 max-w-2xl text-sm text-muted">
-              <code className="font-mono">POST /api/payment-webhook</code> records a payment
-              on an invoice (same rules as Record payment). Not a live card charge.{" "}
-              <code className="font-mono">POST /api/stripe-checkout</code> starts Stripe
-              Checkout for the amount due now when keys are set.{" "}
-              <code className="font-mono">POST /api/stripe-webhook</code> records that card
-              payment.               <code className="font-mono">POST /api/send-email</code> emails a sent
-              quote or live invoice when Resend is configured.{" "}
-              <code className="font-mono">POST /api/accounting-write</code> posts a live
-              invoice to Xero or MYOB when tokens are set. Credit notes go to Xero only.{" "}
-              <code className="font-mono">POST /api/quote-share</code> mints a share token
-              for a sent quote. Open <code className="font-mono">/q/{"{token}"}</code>.
-              Drafts are not shared.{" "}
-              <code className="font-mono">POST /api/queue-run</code> queues due recurring
-              invoices when Redis is set. Not a booking calendar. Not a customer portal. Not
-              Confirmation of Payee. Not Xero OAuth. OpenAPI describes these paths and the
-              export download.
-            </p>
+            <ul className="mt-2 max-w-2xl space-y-1 text-sm text-muted">
+              <li>
+                <code className="font-mono">POST /api/payment-webhook</code> — record a
+                payment (same rules as Record payment).
+              </li>
+              <li>
+                <code className="font-mono">POST /api/stripe-checkout</code> and{" "}
+                <code className="font-mono">/api/stripe-webhook</code> — card pay when
+                connected.
+              </li>
+              <li>
+                <code className="font-mono">POST /api/send-email</code> — email a sent quote
+                or live invoice when connected.
+              </li>
+              <li>
+                <code className="font-mono">POST /api/accounting-write</code> — post a live
+                invoice to Xero or MYOB when connected.
+              </li>
+              <li>
+                <code className="font-mono">POST /api/quote-share</code> — share a sent quote
+                at <code className="font-mono">/q/{"{token}"}</code>.
+              </li>
+              <li>
+                <code className="font-mono">POST /api/queue-run</code> — queue due recurring
+                invoices when connected.
+              </li>
+            </ul>
             <p className="mt-3">
               <Link className="text-navy underline-offset-2 hover:underline" href="/openapi.yaml">
                 OpenAPI
@@ -486,11 +604,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </p>
           </section>
 
-          <section className="surface p-6">
+          <section className="surface p-6" id="rates" data-tour="rates">
             <h2 className="font-display text-2xl">Rate card</h2>
             <p className="mt-2 text-sm text-muted">
               Sell prices for this organisation, with optional cost. Markup is (sell − cost) ÷
-              cost. Cost is not printed. Not inventory.
+              cost. Cost is not printed.
             </p>
             {rateList.length === 0 ? (
               <p className="mt-3 text-sm text-muted">No rates yet.</p>
@@ -637,7 +755,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </form>
           </section>
 
-          <section className="surface p-6">
+          <section className="surface p-6" id="create-job-section" data-tour="create-job">
             <h2 className="font-display text-2xl">Create a job</h2>
             <form
               id="create-job"
@@ -702,11 +820,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 <textarea className="field mt-1 min-h-20" name="notes" maxLength={2000} />
               </label>
               <p className="text-sm text-muted sm:col-span-2">
-                Pick an existing customer, or leave that blank and type a name and
-                suburb. Phone and email on this form are saved only when creating a
-                new customer. Inspection fields (property, vendor, purchaser, report
-                type) print on the quote and invoice. Job notes are internal and are
-                not printed. Not a customer portal.
+                Pick an existing customer, or leave that blank and type a name and suburb.
+                Phone and email on this form are saved only when creating a new customer.
+                Inspection fields print on the quote and invoice. Job notes stay internal.
               </p>
               <div>
                 <button type="submit" className="btn btn-primary">
@@ -714,86 +830,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </button>
               </div>
             </form>
-          </section>
-
-          <section>
-            {dueRecurring.length > 0 ? (
-              <section className="mb-8">
-                <h2 className="font-display text-2xl">Due recurring invoices</h2>
-                <p className="mt-2 text-sm text-muted">
-                  Issue one period at a time. This is not a booking calendar. Issuing does
-                  not email the invoice.
-                </p>
-                {!redisOn ? (
-                  <p className="mt-2 text-sm text-muted">
-                    Queue is off on this deploy (
-                    <code className="font-mono">REDIS_URL</code> unset). Leave it unset on
-                    a public no-login site. Click Issue due invoice to issue one now.
-                  </p>
-                ) : null}
-                <form action={queueDueRecurringAction} className="mt-3">
-                  <button type="submit" className="btn btn-ghost">
-                    Queue due invoices
-                  </button>
-                </form>
-                <ul className="mt-4 grid gap-3">
-                  {dueRecurring.map((row) => {
-                    const cadence = parseRecurringFrequency(row.frequency);
-                    return (
-                      <li
-                        key={row.id}
-                        className="surface flex flex-wrap items-center justify-between gap-3 p-4"
-                      >
-                        <div>
-                          <p className="font-semibold">{row.customerName}</p>
-                          <p className="text-sm text-muted">
-                            {row.suburb} · {row.jobDescription} ·{" "}
-                            {cadence ? recurringFrequencyLabel(cadence) : "Recurring"} ·
-                            next {formatIsoDateAu(row.nextIssueOn)} ·{" "}
-                            {formatAudFromCents(row.totals.totalCents)}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link href={`/jobs/${row.jobId}`} className="btn btn-ghost">
-                            Open job
-                          </Link>
-                          <form action={issueRecurringAction}>
-                            <input type="hidden" name="jobId" value={row.jobId} />
-                            <input type="hidden" name="recurringId" value={row.id} />
-                            <button type="submit" className="btn btn-primary">
-                              Issue due invoice
-                            </button>
-                          </form>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ) : null}
-            <h2 className="font-display text-2xl">Jobs</h2>
-            {jobList.length === 0 ? (
-              <p className="mt-3 text-muted">No jobs yet. Load demo or create one.</p>
-            ) : (
-              <ul className="mt-4 grid gap-3">
-                {jobList.map((job) => (
-                  <li key={job.id}>
-                    <Link
-                      href={`/jobs/${job.id}`}
-                      className="surface flex flex-wrap items-center justify-between gap-3 p-4 hover:border-navy"
-                    >
-                      <div>
-                        <p className="font-semibold">{job.customerName}</p>
-                        <p className="text-sm text-muted">
-                          {job.suburb} · {job.description}
-                        </p>
-                      </div>
-                      <span className="pill">{job.status}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
         </>
       ) : null}

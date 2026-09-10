@@ -244,11 +244,12 @@ describe("queueSkipReason", () => {
 });
 
 describe("describeQueueSkip", () => {
-  it("never echoes REDIS_URL and is not a calendar", () => {
-    expect(describeQueueSkip("no_key")).toMatch(/REDIS_URL/);
+  it("never echoes a Redis URL and is not a calendar", () => {
+    expect(describeQueueSkip("no_key")).toMatch(/not queued/i);
+    expect(describeQueueSkip("no_key")).not.toMatch(/REDIS_URL/);
     expect(describeQueueSkip("no_key")).not.toMatch(/redis:\/\//);
     expect(QUEUE_NOTE).toMatch(/booking calendar/i);
-    expect(QUEUE_NOTE).toMatch(/no-login/i);
+    expect(QUEUE_NOTE).not.toMatch(/REDIS_URL/);
     expect(redactQueueError(new Error("password=hunter2 boom"))).toContain(
       "password=***",
     );

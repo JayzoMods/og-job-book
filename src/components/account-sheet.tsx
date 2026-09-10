@@ -255,7 +255,7 @@ export function StatementSheet({
         <p className="mt-10 text-xs text-[#4b5563]">
           This is a statement of account, not a tax invoice. Amount owing is after recorded
           payments, credits, and retention held as at the date above. Retention is a hold, not a
-          GST adjustment. This is not tax advice, does not lodge a BAS, and is not Confirmation of
+          GST adjustment. This is not tax advice and does not lodge a BAS.
           Payee. Amounts are AUD.
         </p>
       </article>

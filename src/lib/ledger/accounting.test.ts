@@ -178,7 +178,7 @@ describe("accountingSkipReason", () => {
     ).toBe("not_payable");
     expect(
       describeAccountingSkip("no_key"),
-    ).toMatch(/XERO_ACCESS_TOKEN/);
+    ).toMatch(/not available/);
   });
 });
 

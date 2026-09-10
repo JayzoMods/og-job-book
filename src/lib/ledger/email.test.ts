@@ -124,7 +124,7 @@ describe("emailSkipReason", () => {
 
 describe("describeEmailSkip", () => {
   it("explains the three skip paths without naming Stripe", () => {
-    expect(describeEmailSkip("no_key")).toMatch(/RESEND_API_KEY/);
+    expect(describeEmailSkip("no_key")).toMatch(/not available/i);
     expect(describeEmailSkip("no_email")).toMatch(/no email address/);
     expect(describeEmailSkip("not_sendable")).toMatch(/Drafts/);
   });

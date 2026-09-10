@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { StatusPill } from "@/components/status-pill";
 import { formatAbn, isValidAbn } from "@/lib/ledger/abn";
 import { centsToDollars, formatAudFromCents } from "@/lib/ledger/money";
 import { taxCodeLabel, gstProofLabel, formatLineQuantity, parseLineUnit, type ComputedLine, type DocumentTotals } from "@/lib/ledger/tax";
@@ -12,6 +13,7 @@ export function DocumentPanel({
   totals,
   extra,
   children,
+  tourId,
 }: {
   title: string;
   status: string;
@@ -20,10 +22,11 @@ export function DocumentPanel({
   totals: DocumentTotals;
   extra?: ReactNode;
   children?: ReactNode;
+  tourId?: string;
 }) {
   const abnOk = isValidAbn(abn);
   return (
-    <article className="surface p-5">
+    <article className="surface p-5" {...(tourId ? { "data-tour": tourId } : {})}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-xl">{title}</h3>
@@ -33,10 +36,10 @@ export function DocumentPanel({
             {gstRegistered ? "" : " · GST not registered on the org"}
           </p>
         </div>
-        <span className="pill">{status}</span>
+        <StatusPill status={status} />
       </div>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[32rem] text-left text-sm">
+        <table className="ledger-table w-full min-w-[32rem] text-left text-sm">
           <thead>
             <tr className="border-b border-line text-muted">
               <th className="py-2 pr-3 font-medium">Description</th>
