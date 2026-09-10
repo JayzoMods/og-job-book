@@ -31,6 +31,43 @@ export const orgs = pgTable("orgs", {
     .notNull(),
 });
 
+export const authUsers = pgTable(
+  "auth_users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    name: text("name").notNull().default(""),
+    isAdmin: boolean("is_admin").notNull().default(false),
+    trialStartedAt: timestamp("trial_started_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("auth_users_email_key").on(table.email)],
+);
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("auth_sessions_token_hash_key").on(table.tokenHash)],
+);
+
+export const trialIpLocks = pgTable("trial_ip_locks", {
+  ipHash: text("ip_hash").primaryKey(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+});
+
 export const orgMembers = pgTable(
   "org_members",
   {
@@ -38,12 +75,14 @@ export const orgMembers = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => orgs.id, { onDelete: "cascade" }),
-    clerkUserId: text("clerk_user_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (table) => [uniqueIndex("org_members_clerk_user_id_key").on(table.clerkUserId)],
+  (table) => [uniqueIndex("org_members_user_id_key").on(table.userId)],
 );
 
 export const customers = pgTable(

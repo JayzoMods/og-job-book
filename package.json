@@ -17,7 +17,6 @@
     "queue:worker": "tsx src/queue/worker.ts"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.9.1",
     "ai": "^7.0.93",
     "bullmq": "^6.3.4",
     "drizzle-orm": "^0.45.2",

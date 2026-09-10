@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { loadDb, tenantJsonDenied } from "@/db/ready";
+import { loadDb, tenantWriteJsonDenied } from "@/db/ready";
 import {
   QUEUE_NOTE,
   parseQueueRun,
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
-  const denied = tenantJsonDenied(state);
+  const denied = tenantWriteJsonDenied(state);
   if (denied) {
     return denied;
   }

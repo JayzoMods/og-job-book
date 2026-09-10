@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { loadDb, tenantJsonDenied } from "@/db/ready";
+import { loadDb, tenantWriteJsonDenied } from "@/db/ready";
 import { getCreditNoteById, getInvoiceById, getJobInOrg } from "@/db/queries";
 import {
   ACCOUNTING_WRITE_NOTE,
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
-  const denied = tenantJsonDenied(state);
+  const denied = tenantWriteJsonDenied(state);
   if (denied) {
     return denied;
   }

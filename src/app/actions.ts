@@ -17,7 +17,7 @@ import {
   getJob,
   getJobInOrg,
   getOrg,
-  getOrgForClerkUser,
+  getOrgForUser,
   getQuoteById,
   getQuoteByShareToken,
   getQuotesForJob,
@@ -46,8 +46,8 @@ import {
   recurringInvoices,
 } from "@/db/schema";
 import { seedDemo } from "@/db/seed";
-import { canLoadDemo, clerkAuthConfigured } from "@/lib/ledger/auth";
-import { resolveClerkUserId } from "@/lib/tenant";
+import { canLoadDemo, authConfigured, trialWriteAllowed } from "@/lib/ledger/auth";
+import { resolveAuthUser } from "@/lib/session";
 import {
   parseAmountKind,
   parseLineUnit,
@@ -143,12 +143,21 @@ function requireDb(): AppDb {
 }
 
 async function requireOrg(db: AppDb): Promise<OrgRow> {
-  if (clerkAuthConfigured()) {
-    const userId = await resolveClerkUserId();
-    if (!userId) {
+  if (authConfigured()) {
+    const user = await resolveAuthUser();
+    if (!user) {
       redirect("/sign-in");
     }
-    const org = await getOrgForClerkUser(db, userId);
+    if (
+      !trialWriteAllowed({
+        isAdmin: user.isAdmin,
+        trialStartedAt: user.trialStartedAt,
+        now: new Date(),
+      })
+    ) {
+      redirect("/?error=trial");
+    }
+    const org = await getOrgForUser(db, user.id);
     if (!org) {
       redirect("/?error=member");
     }
@@ -212,7 +221,7 @@ const paymentSchema = z.object({
 });
 
 export async function loadDemoAction() {
-  if (!canLoadDemo(clerkAuthConfigured())) {
+  if (!canLoadDemo(authConfigured())) {
     redirect("/?error=auth");
   }
   const db = requireDb();
@@ -254,17 +263,29 @@ export async function saveOrgAction(formData: FormData) {
     retentionPercent: parseRetentionPercent(parsed.data.retentionPercent),
   };
   const db = requireDb();
-  if (clerkAuthConfigured()) {
-    const userId = await resolveClerkUserId();
-    if (!userId) {
+  if (authConfigured()) {
+    const user = await resolveAuthUser();
+    if (!user) {
       redirect("/sign-in");
     }
-    const existing = await getOrgForClerkUser(db, userId);
+    if (
+      !trialWriteAllowed({
+        isAdmin: user.isAdmin,
+        trialStartedAt: user.trialStartedAt,
+        now: new Date(),
+      })
+    ) {
+      redirect("/?error=trial");
+    }
+    const existing = await getOrgForUser(db, user.id);
     if (existing) {
       await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
     } else {
       const [created] = await db.insert(orgs).values(values).returning({ id: orgs.id });
-      await db.insert(orgMembers).values({ orgId: created.id, clerkUserId: userId });
+      if (!created) {
+        redirect("/?error=org");
+      }
+      await db.insert(orgMembers).values({ orgId: created.id, userId: user.id });
     }
   } else {
     const existing = await getOrg(db);

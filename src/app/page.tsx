@@ -25,7 +25,7 @@ import { lineUnitLabel, parseLineUnit, todayIsoSydney } from "@/lib/ledger/tax";
 import { PAYMENT_TERMS_OPTIONS, parsePaymentTermsDays, paymentTermsLabel } from "@/lib/ledger/terms";
 import { parseRetentionPercent, RETENTION_PERCENT_OPTIONS } from "@/lib/ledger/claim";
 import { REPORT_TYPE_OPTIONS } from "@/lib/ledger/inspection";
-import { canLoadDemo, clerkAuthConfigured } from "@/lib/ledger/auth";
+import { canLoadDemo, authConfigured } from "@/lib/ledger/auth";
 import { formatIsoDateAu } from "@/lib/ledger/print";
 import {
   parseRecurringFrequency,
@@ -56,6 +56,8 @@ const ERRORS: Record<string, string> = {
     "Load demo is not available while sign-in is on. It would reset every organisation.",
   member:
     "Save the organisation after you sign in.",
+  trial:
+    "This 24-hour trial has ended. You can still read the books. Writes are locked.",
 };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -74,8 +76,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const gstQuarter = parseGstQuarter("", today);
   const quarterChoices = gstQuarterChoices(today);
   const defaultQuarter = gstQuarter.ok ? gstQuarter.value : "";
-  const authOn = clerkAuthConfigured();
+  const authOn = authConfigured();
   const showLoadDemo = canLoadDemo(authOn);
+  const trialLocked = state.ok && authOn && !state.trialWriteAllowed && Boolean(state.userId);
   const redisOn = queueConfigured();
   const dueRecurring = recurringList.filter((row) =>
     recurringIsDue(
@@ -109,7 +112,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <p className="mt-4 max-w-2xl text-muted">
             Narrow ledger for a small AU trade or inspection business.
             {authOn
-              ? " Sign in to open your books."
+              ? state.ok && state.userId
+                ? " Your books stay on this account."
+                : " Sign in to open your books. A new account gets 24 hours."
               : " No login. Load demo seeds a fictional Sydney inspection org."}{" "}
             Not tax advice, and it does not lodge a BAS.
           </p>
@@ -140,6 +145,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {error ? (
         <p className="banner banner-error" role="alert">
           {error}
+        </p>
+      ) : null}
+      {trialLocked ? (
+        <p className="banner banner-error" role="status">
+          This 24-hour trial has ended. The books stay readable. Writes are locked.
         </p>
       ) : null}
       {queued ? (

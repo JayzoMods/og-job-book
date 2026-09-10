@@ -29,6 +29,13 @@
       "when": 1788957560636,
       "tag": "0003_org_members",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789037902765,
+      "tag": "0004_first_party_auth",
+      "breakpoints": true
     }
   ]
 }

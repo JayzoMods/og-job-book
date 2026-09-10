@@ -21,6 +21,13 @@ export async function seedDemo(db: AppDb): Promise<string> {
   await db.execute(
     sql`truncate table credit_note_lines, credit_notes, payments, invoice_lines, invoices, quote_lines, quotes, recurring_invoice_lines, recurring_invoices, jobs, customers, rate_card_items, org_members, orgs restart identity cascade`,
   );
+  try {
+    await db.execute(
+      sql`truncate table trial_ip_locks, auth_sessions, auth_users restart identity cascade`,
+    );
+  } catch {
+    // 0004 not applied yet
+  }
 
   await db.insert(orgs).values({
     id: demoSeed.org.id,

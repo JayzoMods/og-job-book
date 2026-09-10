@@ -1,19 +1,24 @@
 import { NextResponse } from "next/server";
-import type { NextFetchEvent, NextRequest } from "next/server";
-import { clerkAuthConfigured, isPublicTenantPath } from "@/lib/ledger/auth";
+import type { NextRequest } from "next/server";
+import { authConfigured, isPublicTenantPath, SESSION_COOKIE } from "@/lib/ledger/auth";
 
-export async function proxy(request: NextRequest, event: NextFetchEvent) {
-  if (!clerkAuthConfigured()) {
+export function proxy(request: NextRequest) {
+  if (!authConfigured()) {
     return NextResponse.next();
   }
-  const { clerkMiddleware } = await import("@clerk/nextjs/server");
-  const run = clerkMiddleware(async (auth, req) => {
-    if (isPublicTenantPath(req.nextUrl.pathname)) {
-      return;
-    }
-    await auth.protect();
-  });
-  return run(request, event);
+  const path = request.nextUrl.pathname;
+  if (isPublicTenantPath(path)) {
+    return NextResponse.next();
+  }
+  const session = request.cookies.get(SESSION_COOKIE)?.value?.trim() ?? "";
+  if (session !== "") {
+    return NextResponse.next();
+  }
+  if (path.startsWith("/api/")) {
+    return NextResponse.json({ error: "sign_in" }, { status: 401 });
+  }
+  const signIn = new URL("/sign-in", request.url);
+  return NextResponse.redirect(signIn);
 }
 
 export default proxy;
@@ -22,6 +27,5 @@ export const config = {
   matcher: [
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
-    "/__clerk/(.*)",
   ],
 };

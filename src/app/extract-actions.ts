@@ -1,6 +1,8 @@
 "use server";
 
+import { currentWriteGate, loadDb } from "@/db/ready";
 import { isUuid } from "@/db/queries";
+import { authConfigured } from "@/lib/ledger/auth";
 import {
   extractAiConfigured,
   extractQuoteLines,
@@ -25,6 +27,39 @@ export async function extractLinesAction(
   const jobId = String(formData.get("jobId") ?? "");
   if (!isUuid(jobId)) {
     return { ok: false, skipped: false, lines: [], messages: [], error: "That job was not valid." };
+  }
+
+  const state = await loadDb();
+  if (!state.ok) {
+    if (authConfigured()) {
+      return {
+        ok: false,
+        skipped: false,
+        lines: [],
+        messages: [],
+        error: "Postgres is not connected.",
+      };
+    }
+  } else {
+    const gate = currentWriteGate(state);
+    if (gate === "unauthenticated") {
+      return {
+        ok: false,
+        skipped: false,
+        lines: [],
+        messages: [],
+        error: "Sign in to extract lines.",
+      };
+    }
+    if (gate === "trial_expired") {
+      return {
+        ok: false,
+        skipped: false,
+        lines: [],
+        messages: [],
+        error: "This 24-hour trial has ended.",
+      };
+    }
   }
 
   if (!extractAiConfigured()) {

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { loadDb, tenantJsonDenied } from "@/db/ready";
+import { loadDb, tenantWriteJsonDenied } from "@/db/ready";
 import { getJobInOrg, getQuoteById } from "@/db/queries";
 import { quotes } from "@/db/schema";
 import {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
-  const denied = tenantJsonDenied(state);
+  const denied = tenantWriteJsonDenied(state);
   if (denied) {
     return denied;
   }

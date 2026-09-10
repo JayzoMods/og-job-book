@@ -1,11 +1,8 @@
-import { clerkAuthConfigured, parseClerkUserId } from "@/lib/ledger/auth";
+import { parseUserId } from "@/lib/ledger/auth";
+import { resolveAuthUser } from "@/lib/session";
 
-/** Clerk session user, or null when Clerk is off / signed out. Never throws when keys are unset. */
-export async function resolveClerkUserId(): Promise<string | null> {
-  if (!clerkAuthConfigured()) {
-    return null;
-  }
-  const { auth } = await import("@clerk/nextjs/server");
-  const { userId } = await auth();
-  return parseClerkUserId(userId);
+/** Signed-in user id, or null when auth is off / signed out. Never throws when AUTH_SECRET is unset. */
+export async function resolveUserId(): Promise<string | null> {
+  const user = await resolveAuthUser();
+  return parseUserId(user?.id);
 }

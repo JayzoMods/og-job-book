@@ -4,8 +4,8 @@ info:
   version: 0.1.0
   summary: Job → quote → invoice ledger HTTP API
   description: |
-    Public hire-repo API for OG Job Book. Recruiter demo has no login when Clerk
-    keys are unset. Australian English. AUD.
+    Public hire-repo API for OG Job Book. Recruiter demo has no login when
+    AUTH_SECRET is unset. Australian English. AUD.
 
     POST /api/payment-webhook records a payment on an invoice (same rules as
     the Record payment form). POST /api/stripe-checkout starts a Stripe Checkout
@@ -19,14 +19,14 @@ info:
     enqueues due recurring invoices on Redis with BullMQ when REDIS_URL is set.
     GET /api/export downloads the books.
 
-    Optional Clerk: when CLERK_SECRET_KEY and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-    are set, ledger APIs return 401 until sign-in. GET /q/{token},
-    POST /api/payment-webhook, and POST /api/stripe-webhook stay public.
-    Leave Clerk keys unset on a public no-login deploy.
+    Optional accounts: when AUTH_SECRET is set (32+ characters), ledger APIs
+    return 401 until sign-in and 403 after a 24-hour trial (ADMIN_EMAIL is unlimited).
+    GET /q/{token}, POST /api/payment-webhook, and POST /api/stripe-webhook stay public.
+    Leave AUTH_SECRET unset on a public no-login deploy.
 
     This is not Confirmation of Payee, not tax advice, not a BAS,
     not a customer portal, and not Xero OAuth. Leave Stripe, Resend, Xero, MYOB,
-    Clerk, and Redis keys unset on a public no-login deploy.
+    AUTH_SECRET, and Redis keys unset on a public no-login deploy.
   license:
     name: UNLICENSED
 servers:
@@ -405,7 +405,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/QueueRunResponse"
         "401":
-          description: Clerk is on and the caller is not signed in
+          description: Sign-in is on and the caller is not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueRunResponse"
+        "403":
+          description: Sign-in is on and the 24-hour trial has ended
           content:
             application/json:
               schema:

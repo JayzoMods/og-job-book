@@ -1,4 +1,4 @@
-import { loadDb, tenantJsonDenied } from "@/db/ready";
+import { loadDb, tenantWriteJsonDenied } from "@/db/ready";
 import { getInvoiceById, getJobInOrg } from "@/db/queries";
 import { invoiceBalanceCents } from "@/lib/ledger/credit";
 import { parseRecipientEmail } from "@/lib/ledger/email";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
-  const denied = tenantJsonDenied(state);
+  const denied = tenantWriteJsonDenied(state);
   if (denied) {
     return denied;
   }

@@ -25,9 +25,9 @@ describe("OPENAPI_YAML", () => {
     expect(OPENAPI_YAML).toMatch(/amount due now/);
     expect(OPENAPI_YAML).toMatch(/OAuth/);
     expect(OPENAPI_YAML).toMatch(/customer portal/i);
-    expect(OPENAPI_YAML).toMatch(/Clerk/);
+    expect(OPENAPI_YAML).toMatch(/AUTH_SECRET/);
     expect(OPENAPI_YAML).toContain("401");
-    expect(OPENAPI_YAML).toMatch(/Leave Clerk keys unset/i);
+    expect(OPENAPI_YAML).toMatch(/Leave AUTH_SECRET unset/i);
     expect(OPENAPI_YAML).toMatch(/REDIS_URL/);
     expect(OPENAPI_YAML).toMatch(/booking calendar/i);
   });

@@ -1,5 +1,5 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { orgOwnsResource } from "@/lib/ledger/auth";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { orgOwnsResource, trialIpLockAllowsMint } from "@/lib/ledger/auth";
 import { nextJobStatusFromInvoices } from "@/lib/ledger/claim";
 import { creditedCentsFromNotes, invoiceBalanceCents } from "@/lib/ledger/credit";
 import { canIssueRecurring, nextIssueOn, recurringIsDue } from "@/lib/ledger/recurring";
@@ -17,6 +17,8 @@ import { dueDateFromTerms, parsePaymentTermsDays } from "@/lib/ledger/terms";
 import { allocateDocNumber } from "./allocate";
 import type { AppDb } from "./client";
 import {
+  authSessions,
+  authUsers,
   creditNoteLines,
   creditNotes,
   customers,
@@ -31,6 +33,7 @@ import {
   rateCardItems,
   recurringInvoiceLines,
   recurringInvoices,
+  trialIpLocks,
 } from "./schema";
 
 const UUID_RE =
@@ -102,17 +105,108 @@ export async function getOrgById(db: AppDb, orgId: string): Promise<OrgRow | nul
   return org ?? null;
 }
 
-export async function getOrgForClerkUser(
+export type AuthUserRow = typeof authUsers.$inferSelect;
+
+export async function getOrgForUser(
   db: AppDb,
-  clerkUserId: string,
+  userId: string,
 ): Promise<OrgRow | null> {
   const [row] = await db
     .select({ org: orgs })
     .from(orgMembers)
     .innerJoin(orgs, eq(orgMembers.orgId, orgs.id))
-    .where(eq(orgMembers.clerkUserId, clerkUserId))
+    .where(eq(orgMembers.userId, userId))
     .limit(1);
   return row?.org ?? null;
+}
+
+export async function getAuthUserById(
+  db: AppDb,
+  userId: string,
+): Promise<AuthUserRow | null> {
+  const [row] = await db.select().from(authUsers).where(eq(authUsers.id, userId)).limit(1);
+  return row ?? null;
+}
+
+export async function getAuthUserByEmail(
+  db: AppDb,
+  email: string,
+): Promise<AuthUserRow | null> {
+  const [row] = await db.select().from(authUsers).where(eq(authUsers.email, email)).limit(1);
+  return row ?? null;
+}
+
+export async function insertAuthUser(
+  db: AppDb,
+  values: {
+    email: string;
+    passwordHash: string;
+    name: string;
+    isAdmin: boolean;
+    trialStartedAt: Date | null;
+  },
+): Promise<string> {
+  const [created] = await db
+    .insert(authUsers)
+    .values(values)
+    .returning({ id: authUsers.id });
+  if (!created) {
+    throw new Error("auth_user_insert");
+  }
+  return created.id;
+}
+
+export async function insertAuthSession(
+  db: AppDb,
+  values: { userId: string; tokenHash: string; expiresAt: Date },
+): Promise<void> {
+  await db.insert(authSessions).values(values);
+}
+
+export async function getAuthUserBySessionHash(
+  db: AppDb,
+  tokenHash: string,
+  now: Date,
+): Promise<AuthUserRow | null> {
+  const [row] = await db
+    .select({ user: authUsers })
+    .from(authSessions)
+    .innerJoin(authUsers, eq(authSessions.userId, authUsers.id))
+    .where(and(eq(authSessions.tokenHash, tokenHash), gt(authSessions.expiresAt, now)))
+    .limit(1);
+  return row?.user ?? null;
+}
+
+export async function deleteAuthSessionByHash(db: AppDb, tokenHash: string): Promise<void> {
+  await db.delete(authSessions).where(eq(authSessions.tokenHash, tokenHash));
+}
+
+export async function claimTrialIp(
+  db: AppDb,
+  ipHash: string,
+  now: Date,
+): Promise<boolean> {
+  const [existing] = await db
+    .select()
+    .from(trialIpLocks)
+    .where(eq(trialIpLocks.ipHash, ipHash))
+    .limit(1);
+  if (existing && !trialIpLockAllowsMint(existing.startedAt, now)) {
+    return false;
+  }
+  if (!existing) {
+    try {
+      await db.insert(trialIpLocks).values({ ipHash, startedAt: now });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  await db
+    .update(trialIpLocks)
+    .set({ startedAt: now })
+    .where(eq(trialIpLocks.ipHash, ipHash));
+  return true;
 }
 
 export async function getCustomer(

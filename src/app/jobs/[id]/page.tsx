@@ -121,6 +121,8 @@ const ERRORS: Record<string, string> = {
     "Accounting write needs a sent or paid invoice, or an issued credit note for Xero. Drafts and void documents are not posted. MYOB is invoices only.",
   share:
     "Only a sent, accepted, declined, or superseded quote has a share link. Drafts stay in this ledger. The link is not a customer portal.",
+  trial:
+    "This 24-hour trial has ended. You can still read the books. Writes are locked.",
 };
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">) {
@@ -173,6 +175,11 @@ export default async function JobPage({
 
   return (
     <div className="page-frame">
+      {state.authMode === "account" && !state.trialWriteAllowed ? (
+        <p className="banner banner-error" role="status">
+          This 24-hour trial has ended. The books stay readable. Writes are locked.
+        </p>
+      ) : null}
       <p>
         <Link href="/#jobs" className="text-sm font-semibold text-navy underline-offset-2 hover:underline">
           ← Jobs

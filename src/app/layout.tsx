@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces, IBM_Plex_Mono } from "next/font/google";
 import { AppBackdrop } from "@/components/app-backdrop";
+import { AuthHeaderControls } from "@/components/auth-header";
 import { ProductTourHost } from "@/components/product-tour";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { clerkAuthConfigured } from "@/lib/ledger/auth";
+import { authConfigured } from "@/lib/ledger/auth";
+import { resolveAuthUser } from "@/lib/session";
 import "./globals.css";
 
 const display = Fraunces({
@@ -37,9 +39,10 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const body = clerkAuthConfigured()
-    ? await clerkBody(children)
-    : openBody(children);
+  const user = authConfigured() ? await resolveAuthUser() : null;
+  const trailing = authConfigured() ? (
+    <AuthHeaderControls signedIn={Boolean(user)} email={user?.email ?? null} />
+  ) : undefined;
 
   return (
     <html
@@ -48,30 +51,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="relative flex min-h-full flex-col bg-paper font-sans text-ink">
-        {body}
+        <AppBackdrop />
+        <a className="skip-link print:hidden" href="#main">
+          Skip to jobs
+        </a>
+        <SiteHeader trailing={trailing} />
+        <ProductTourHost />
+        <main id="main" className="flex flex-1 flex-col">
+          {children}
+        </main>
+        <SiteFooter />
       </body>
     </html>
   );
-}
-
-function openBody(children: React.ReactNode) {
-  return (
-    <>
-      <AppBackdrop />
-      <a className="skip-link print:hidden" href="#main">
-        Skip to jobs
-      </a>
-      <SiteHeader />
-      <ProductTourHost />
-      <main id="main" className="flex flex-1 flex-col">
-        {children}
-      </main>
-      <SiteFooter />
-    </>
-  );
-}
-
-async function clerkBody(children: React.ReactNode) {
-  const { ClerkAppShell } = await import("@/components/clerk-app-shell");
-  return <ClerkAppShell>{children}</ClerkAppShell>;
 }
