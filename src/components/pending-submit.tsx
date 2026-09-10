@@ -40,9 +40,10 @@ export function PendingSubmit({
       value={value}
       aria-busy={showBusy}
       onClick={() => {
-        if (awaitNavigation) {
-          setNavPending(true);
-        }
+        if (!awaitNavigation || navPending) return;
+        // Defer busy/disabled until after the browser queues the native submit.
+        // Disabling in the same click turn cancels GET form navigation.
+        window.setTimeout(() => setNavPending(true), 0);
       }}
     >
       {showBusy ? busy : idle}
