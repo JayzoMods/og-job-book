@@ -8,6 +8,7 @@ import {
   parseGstQuarter,
 } from "@/lib/ledger/gst-quarter";
 import { todayIsoSydney } from "@/lib/ledger/tax";
+import { shouldWatermarkPrint } from "@/lib/ledger/print";
 
 export async function generateMetadata() {
   return { title: "Print GST quarter" };
@@ -69,6 +70,12 @@ export default async function PrintGstQuarterPage({
       gstRegistered={state.org.gstRegistered}
       rows={rows}
       totals={gstQuarterTotals(rows)}
+    
+      sampleMark={shouldWatermarkPrint({
+        orgId: state.org.id,
+        isAdmin: state.isAdmin,
+        trialStartedAt: state.trialStartedAt,
+      })}
     />
   );
 }

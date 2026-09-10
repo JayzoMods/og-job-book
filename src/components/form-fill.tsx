@@ -5,6 +5,8 @@ import type { FormFillTemplate } from "@/lib/ledger/templates";
 function fillField(field: Element, value: string): void {
   if (field instanceof HTMLInputElement && field.type === "checkbox") {
     field.checked = value === "yes" || value === "true";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
     return;
   }
   if (
@@ -13,6 +15,8 @@ function fillField(field: Element, value: string): void {
     field instanceof HTMLSelectElement
   ) {
     field.value = value;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
   }
 }
 

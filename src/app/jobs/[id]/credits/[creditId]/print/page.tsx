@@ -3,7 +3,7 @@ import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
 import { getCreditNoteById, getJobInOrg, isUuid } from "@/db/queries";
 import { inspectionPrintLines } from "@/lib/ledger/inspection";
-import { formatInstantAu } from "@/lib/ledger/print";
+import { formatInstantAu, shouldWatermarkPrint } from "@/lib/ledger/print";
 
 export async function generateMetadata({
   params,
@@ -51,6 +51,12 @@ export default async function PrintCreditNotePage({
         note.againstDocNumber ? `invoice ${note.againstDocNumber}` : undefined
       }
       reason={note.reason || undefined}
+    
+      sampleMark={shouldWatermarkPrint({
+        orgId: state.org.id,
+        isAdmin: state.isAdmin,
+        trialStartedAt: state.trialStartedAt,
+      })}
     />
   );
 }

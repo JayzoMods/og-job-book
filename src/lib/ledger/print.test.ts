@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEMO_IDS } from "../../data/demo-seed";
 import {
   formatIsoDateAu,
   formatInstantAu,
@@ -6,6 +7,7 @@ import {
   printGstQuarterTitle,
   printRemittanceTitle,
   printStatementTitle,
+  shouldWatermarkPrint,
 } from "./print";
 
 describe("printDocumentTitle", () => {
@@ -113,5 +115,47 @@ describe("formatInstantAu", () => {
     expect(formatInstantAu(new Date("2026-09-07T14:00:00.000Z"))).toMatch(
       /^8 Sept? 2026$/,
     );
+  });
+});
+
+describe("shouldWatermarkPrint", () => {
+  it("marks the fixed Load demo organisation", () => {
+    expect(
+      shouldWatermarkPrint({
+        orgId: DEMO_IDS.org,
+        isAdmin: true,
+        trialStartedAt: null,
+      }),
+    ).toBe(true);
+  });
+
+  it("marks signed-in trial accounts, including after Fill sample books", () => {
+    expect(
+      shouldWatermarkPrint({
+        orgId: "b0000000-0000-4000-8000-000000000099",
+        isAdmin: false,
+        trialStartedAt: new Date("2026-09-11T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+  });
+
+  it("skips admin accounts that are not on the demo org id", () => {
+    expect(
+      shouldWatermarkPrint({
+        orgId: "b0000000-0000-4000-8000-000000000099",
+        isAdmin: true,
+        trialStartedAt: new Date("2026-09-11T00:00:00.000Z"),
+      }),
+    ).toBe(false);
+  });
+
+  it("skips open books that are not the demo org", () => {
+    expect(
+      shouldWatermarkPrint({
+        orgId: "b0000000-0000-4000-8000-000000000099",
+        isAdmin: false,
+        trialStartedAt: null,
+      }),
+    ).toBe(false);
   });
 });

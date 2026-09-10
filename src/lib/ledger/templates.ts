@@ -331,3 +331,76 @@ export const JOB_FORM_TEMPLATES: FormFillTemplate[] = [
     },
   },
 ];
+
+function dollarsFromCents(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function rateTemplateFromSeed(
+  id: string,
+  label: string,
+  rate: (typeof demoSeed.rateCard)[number],
+): FormFillTemplate {
+  return {
+    id,
+    label,
+    fields: {
+      description: rate.description,
+      unitPrice: dollarsFromCents(rate.unitPriceCents),
+      unitCost:
+        rate.unitCostCents == null ? "" : dollarsFromCents(rate.unitCostCents),
+      unit: rate.unit,
+      taxCode: rate.taxCode,
+      amountKind: rate.amountKind,
+    },
+  };
+}
+
+const prePurchaseRate = demoSeed.rateCard.find((rate) => rate.id === DEMO_IDS.ratePrePurchase);
+const stormRate = demoSeed.rateCard.find((rate) => rate.id === DEMO_IDS.rateStormHours);
+const bookletRate = demoSeed.rateCard.find((rate) => rate.id === DEMO_IDS.rateBooklet);
+
+export const RATE_FORM_TEMPLATES: FormFillTemplate[] = [
+  rateTemplateFromSeed(
+    "pre-purchase",
+    "Pre-purchase",
+    prePurchaseRate ?? {
+      id: DEMO_IDS.ratePrePurchase,
+      description: "Pre-purchase building inspection",
+      unit: "each",
+      unitPriceCents: 121000,
+      unitCostCents: 88000,
+      taxCode: "GST",
+      amountKind: "inclusive",
+      sortOrder: 0,
+    },
+  ),
+  rateTemplateFromSeed(
+    "storm",
+    "Storm hours",
+    stormRate ?? {
+      id: DEMO_IDS.rateStormHours,
+      description: "Storm inspection",
+      unit: "hours",
+      unitPriceCents: 13200,
+      unitCostCents: 8800,
+      taxCode: "GST",
+      amountKind: "inclusive",
+      sortOrder: 2,
+    },
+  ),
+  rateTemplateFromSeed(
+    "booklet",
+    "GST-free booklet",
+    bookletRate ?? {
+      id: DEMO_IDS.rateBooklet,
+      description: "GST-free first-aid training booklet",
+      unit: "each",
+      unitPriceCents: 2200,
+      unitCostCents: 1000,
+      taxCode: "GST_FREE",
+      amountKind: "inclusive",
+      sortOrder: 1,
+    },
+  ),
+];

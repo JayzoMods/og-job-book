@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { RemittanceSheet } from "@/components/account-sheet";
 import { loadDb } from "@/db/ready";
 import { getInvoiceById, getJobInOrg, isUuid } from "@/db/queries";
+import { shouldWatermarkPrint } from "@/lib/ledger/print";
 import { remittanceAdvice } from "@/lib/ledger/statement";
 
 export async function generateMetadata({
@@ -53,6 +54,11 @@ export default async function PrintRemittancePage({
           paidOn: row.paidOn,
           amountCents: row.amountCents,
         })),
+      })}
+      sampleMark={shouldWatermarkPrint({
+        orgId: state.org.id,
+        isAdmin: state.isAdmin,
+        trialStartedAt: state.trialStartedAt,
       })}
     />
   );

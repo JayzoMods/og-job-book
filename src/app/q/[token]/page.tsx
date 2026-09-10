@@ -11,7 +11,7 @@ import {
   parseShareToken,
 } from "@/lib/ledger/share";
 import { inspectionPrintLines } from "@/lib/ledger/inspection";
-import { formatInstantAu } from "@/lib/ledger/print";
+import { formatInstantAu, shouldWatermarkPrint } from "@/lib/ledger/print";
 import { quoteRevisionLabel } from "@/lib/ledger/revise";
 import { quoteDocumentStatus, quoteIsExpired } from "@/lib/ledger/terms";
 import { todayIsoSydney } from "@/lib/ledger/tax";
@@ -106,7 +106,9 @@ export default async function SharedQuotePage({
               ? "This quote has expired."
               : undefined
         }
-      />
+      
+        sampleMark={shouldWatermarkPrint({ orgId: org.id })}
+    />
       <div className="print-toolbar mx-auto flex w-full max-w-[210mm] flex-col gap-3 px-4 pb-8 sm:px-6">
         {canRespond ? (
           <div className="flex flex-wrap gap-3">

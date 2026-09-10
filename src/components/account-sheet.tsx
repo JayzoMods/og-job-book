@@ -9,6 +9,7 @@ import {
   type StatementTotals,
 } from "@/lib/ledger/statement";
 import { PrintButton } from "@/components/print-button";
+import { PrintSampleMark } from "@/components/print-sample-mark";
 
 function OrgCustomerHeader({
   title,
@@ -87,6 +88,7 @@ export function StatementSheet({
   rows,
   totals,
   payLines,
+  sampleMark = false,
 }: {
   backHref: string;
   backLabel: string;
@@ -103,6 +105,7 @@ export function StatementSheet({
   rows: StatementRow[];
   totals: StatementTotals;
   payLines: Array<{ label: string; value: string }>;
+  sampleMark?: boolean;
 }) {
   const period =
     from === null
@@ -122,6 +125,7 @@ export function StatementSheet({
       </div>
 
       <article className="print-sheet">
+        {sampleMark ? <PrintSampleMark /> : null}
         <OrgCustomerHeader
           title={printStatementTitle()}
           issuedLabel={period}
@@ -275,6 +279,7 @@ export function RemittanceSheet({
   customerEmail,
   jobDescription,
   advice,
+  sampleMark = false,
 }: {
   jobHref: string;
   orgName: string;
@@ -287,6 +292,7 @@ export function RemittanceSheet({
   customerEmail?: string;
   jobDescription: string;
   advice: RemittanceAdvice;
+  sampleMark?: boolean;
 }) {
   return (
     <div className="print-page mx-auto flex w-full max-w-[210mm] flex-col gap-4 px-4 py-6 sm:px-6">
@@ -301,6 +307,7 @@ export function RemittanceSheet({
       </div>
 
       <article className="print-sheet">
+        {sampleMark ? <PrintSampleMark /> : null}
         <OrgCustomerHeader
           title={printRemittanceTitle()}
           issuedLabel={`${advice.methodLabel} · ${formatIsoDateAu(advice.paidOn)}`}

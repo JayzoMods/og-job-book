@@ -29,7 +29,12 @@ import { PAYMENT_TERMS_OPTIONS, parsePaymentTermsDays, paymentTermsLabel } from 
 import { parseRetentionPercent, RETENTION_PERCENT_OPTIONS } from "@/lib/ledger/claim";
 import { REPORT_TYPE_OPTIONS } from "@/lib/ledger/inspection";
 import { canLoadDemo, authConfigured } from "@/lib/ledger/auth";
-import { canApplySampleBooks, JOB_FORM_TEMPLATES, ORG_FORM_TEMPLATES } from "@/lib/ledger/templates";
+import {
+  canApplySampleBooks,
+  JOB_FORM_TEMPLATES,
+  ORG_FORM_TEMPLATES,
+  RATE_FORM_TEMPLATES,
+} from "@/lib/ledger/templates";
 import { formatIsoDateAu } from "@/lib/ledger/print";
 import {
   parseRecurringFrequency,
@@ -70,6 +75,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const errorKey = typeof params.error === "string" ? params.error : "";
   const error = ERRORS[errorKey];
+  const savedOrg = typeof params.saved === "string" && params.saved === "org";
   const queued = typeof params.queued === "string" && params.queued === "1";
   const state = await loadDb();
   const db = state.ok ? state.db : null;
@@ -178,6 +184,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {error ? (
         <p className="banner banner-error" role="alert">
           {error}
+        </p>
+      ) : null}
+      {savedOrg ? (
+        <p className="banner" role="status">
+          Organisation saved.
         </p>
       ) : null}
       {trialLocked ? (
@@ -319,6 +330,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
           <form
             id="organisation-form"
+            key={org ? `org-${org.id}${savedOrg ? "-saved" : ""}` : "org-new"}
             action={saveOrgAction}
             className="mt-4 grid gap-3 sm:grid-cols-2"
           >
@@ -435,9 +447,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </p>
             ) : null}
             <div>
-              <button type="submit" className="btn btn-ghost">
-                Save organisation
-              </button>
+              <PendingSubmit
+                idle="Save organisation"
+                busy="Saving…"
+                className="btn btn-ghost"
+              />
             </div>
           </form>
           {org && abrLookupConfigured() ? (
@@ -755,9 +769,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 ))}
               </ul>
             )}
+            <div className="mt-6">
+              <FormFillTemplates
+                formId="add-rate-form"
+                templates={RATE_FORM_TEMPLATES}
+                legend="Fill a rate template, then add."
+              />
+            </div>
             <form
+              id="add-rate-form"
               action={saveRateItemAction}
-              className="mt-6 grid gap-3 rounded-xl border border-dashed border-line p-4 sm:grid-cols-2"
+              className="mt-3 grid gap-3 rounded-xl border border-dashed border-line p-4 sm:grid-cols-2"
             >
               <p className="text-sm font-semibold sm:col-span-2">Add a rate</p>
               <label className="text-sm sm:col-span-2">

@@ -138,6 +138,7 @@ import {
   type AccountingDocumentKind,
   type AccountingProvider,
 } from "@/lib/ledger/accounting";
+import { digitsOnly } from "@/lib/ledger/abn";
 
 function requireDb(): AppDb {
   const db = getDb();
@@ -326,7 +327,7 @@ export async function saveOrgAction(formData: FormData) {
   }
   const values = {
     name: parsed.data.name,
-    abn: parsed.data.abn,
+    abn: digitsOnly(parsed.data.abn),
     address: parsed.data.address,
     gstRegistered: parsed.data.gstRegistered === "yes",
     paymentTermsDays: parsePaymentTermsDays(parsed.data.paymentTermsDays),
@@ -337,6 +338,8 @@ export async function saveOrgAction(formData: FormData) {
     retentionPercent: parseRetentionPercent(parsed.data.retentionPercent),
   };
   const db = requireDb();
+  // Keep redirect() outside try/catch — it throws NEXT_REDIRECT, and a broad
+  // catch turns those into /?error=db (looks like Save did nothing).
   if (authConfigured()) {
     const user = await resolveAuthUser();
     if (!user) {
@@ -352,26 +355,37 @@ export async function saveOrgAction(formData: FormData) {
       redirect("/?error=trial");
     }
     const existing = await getOrgForUser(db, user.id);
-    if (existing) {
-      await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
-    } else {
-      const [created] = await db.insert(orgs).values(values).returning({ id: orgs.id });
-      if (!created) {
-        redirect("/?error=org");
+    try {
+      if (existing) {
+        await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
+      } else {
+        const [created] = await db.insert(orgs).values(values).returning({ id: orgs.id });
+        if (!created) {
+          throw new Error("org_insert_failed");
+        }
+        await db.insert(orgMembers).values({ orgId: created.id, userId: user.id });
       }
-      await db.insert(orgMembers).values({ orgId: created.id, userId: user.id });
+    } catch {
+      redirect("/?error=db");
     }
   } else {
-    const existing = await getOrg(db);
-    if (existing) {
-      await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
-    } else {
-      await db.insert(orgs).values(values);
+    try {
+      const existing = await getOrg(db);
+      if (existing) {
+        await db.update(orgs).set(values).where(eq(orgs.id, existing.id));
+      } else {
+        await db.insert(orgs).values(values);
+      }
+    } catch {
+      redirect("/?error=db");
     }
   }
   revalidatePath("/");
   revalidatePath("/", "layout");
-  redirect("/");
+  // Distinct URL so the organisation form remounts with saved defaultValues.
+  // Same-path redirect("/") + React 19 form reset otherwise snaps fields back
+  // to the pre-save defaults and looks like Save did nothing.
+  redirect("/?saved=org");
 }
 
 export async function createJobAction(formData: FormData) {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GstCell } from "@/components/document-panel";
+import { PrintSampleMark } from "@/components/print-sample-mark";
 import { formatAbn, isValidAbn } from "@/lib/ledger/abn";
 import { formatAudFromCents } from "@/lib/ledger/money";
 import { formatIsoDateAu, printDocumentTitle, type PrintKind } from "@/lib/ledger/print";
@@ -36,6 +37,7 @@ export function PrintSheet({
   kindLine,
   retentionHeldCents,
   amountDueCents,
+  sampleMark = false,
 }: {
   kind: PrintKind;
   jobHref?: string;
@@ -66,6 +68,7 @@ export function PrintSheet({
   kindLine?: string;
   retentionHeldCents?: number;
   amountDueCents?: number;
+  sampleMark?: boolean;
 }) {
   const title = printDocumentTitle({ kind, docNumber, status, gstRegistered });
   const abnOk = isValidAbn(abn);
@@ -87,6 +90,7 @@ export function PrintSheet({
       </div>
 
       <article className="print-sheet">
+        {sampleMark ? <PrintSampleMark /> : null}
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#c9c1b3] pb-4">
           <div>
             <p className="text-xs font-semibold tracking-[0.14em] text-[#8a5420] uppercase">

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { PrintSheet } from "@/components/print-sheet";
 import { loadDb } from "@/db/ready";
 import { getJobInOrg, getQuoteById, isUuid } from "@/db/queries";
-import { formatInstantAu } from "@/lib/ledger/print";
+import { formatInstantAu, shouldWatermarkPrint } from "@/lib/ledger/print";
 import { quoteRevisionLabel } from "@/lib/ledger/revise";
 import { quoteDocumentStatus, quoteIsExpired } from "@/lib/ledger/terms";
 import { inspectionPrintLines } from "@/lib/ledger/inspection";
@@ -67,6 +67,12 @@ export default async function PrintQuotePage({
             ? "This quote has expired."
             : undefined
       }
+    
+      sampleMark={shouldWatermarkPrint({
+        orgId: state.org.id,
+        isAdmin: state.isAdmin,
+        trialStartedAt: state.trialStartedAt,
+      })}
     />
   );
 }

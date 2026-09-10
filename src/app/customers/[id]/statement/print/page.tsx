@@ -5,6 +5,7 @@ import { getCustomer, getInvoicesForCustomer, isUuid } from "@/db/queries";
 import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { parseStatementDates, statementRows, statementTotals } from "@/lib/ledger/statement";
 import { todayIsoSydney } from "@/lib/ledger/tax";
+import { shouldWatermarkPrint } from "@/lib/ledger/print";
 
 export async function generateMetadata({
   params,
@@ -85,6 +86,12 @@ export default async function PrintStatementPage({
           payId: state.org.payId,
         }),
       )}
+    
+      sampleMark={shouldWatermarkPrint({
+        orgId: state.org.id,
+        isAdmin: state.isAdmin,
+        trialStartedAt: state.trialStartedAt,
+      })}
     />
   );
 }

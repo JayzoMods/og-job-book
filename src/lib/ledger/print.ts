@@ -1,4 +1,24 @@
+import { DEMO_IDS } from "../../data/demo-seed";
+
 export type PrintKind = "quote" | "invoice" | "credit";
+
+/** Shown on Load demo / trial print sheets. Not a logo stamp on CSV. */
+export const PRINT_SAMPLE_MARK = "Sample — OG Job Book";
+
+/** Demo org id, or any signed-in trial account (including Fill sample books). Admin skips. */
+export function shouldWatermarkPrint(input: {
+  orgId: string | null | undefined;
+  isAdmin?: boolean;
+  trialStartedAt?: Date | null;
+}): boolean {
+  if (input.orgId === DEMO_IDS.org) {
+    return true;
+  }
+  if (input.isAdmin) {
+    return false;
+  }
+  return input.trialStartedAt != null;
+}
 
 export function printStatementTitle(): string {
   return "Statement of account";

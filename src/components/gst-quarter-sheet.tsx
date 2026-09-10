@@ -8,6 +8,7 @@ import {
 import { formatAudFromCents } from "@/lib/ledger/money";
 import { formatIsoDateAu, printGstQuarterTitle } from "@/lib/ledger/print";
 import { PrintButton } from "@/components/print-button";
+import { PrintSampleMark } from "@/components/print-sample-mark";
 
 export function GstQuarterSheet({
   backHref,
@@ -20,6 +21,7 @@ export function GstQuarterSheet({
   gstRegistered,
   rows,
   totals,
+  sampleMark = false,
 }: {
   backHref: string;
   from: string;
@@ -31,6 +33,7 @@ export function GstQuarterSheet({
   gstRegistered: boolean;
   rows: GstQuarterRow[];
   totals: GstQuarterTotals;
+  sampleMark?: boolean;
 }) {
   const abnOk = isValidAbn(abn);
   return (
@@ -46,6 +49,7 @@ export function GstQuarterSheet({
       </div>
 
       <article className="print-sheet">
+        {sampleMark ? <PrintSampleMark /> : null}
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#c9c1b3] pb-4">
           <div>
             <p className="text-xs font-semibold tracking-[0.14em] text-[#8a5420] uppercase">

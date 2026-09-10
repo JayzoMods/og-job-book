@@ -8,6 +8,7 @@ import { invoicePayDetails, invoicePayLines } from "@/lib/ledger/pay";
 import { invoiceDocumentStatus, invoiceIsOverdue, paymentTermsLabel } from "@/lib/ledger/terms";
 import { inspectionPrintLines } from "@/lib/ledger/inspection";
 import { todayIsoSydney } from "@/lib/ledger/tax";
+import { shouldWatermarkPrint } from "@/lib/ledger/print";
 
 export async function generateMetadata({
   params,
@@ -89,6 +90,12 @@ export default async function PrintInvoicePage({
         }),
       )}
       notice={overdue ? "This invoice is overdue." : undefined}
+    
+      sampleMark={shouldWatermarkPrint({
+        orgId: state.org.id,
+        isAdmin: state.isAdmin,
+        trialStartedAt: state.trialStartedAt,
+      })}
     />
   );
 }

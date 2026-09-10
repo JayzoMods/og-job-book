@@ -7,6 +7,7 @@ import {
   JOB_FORM_TEMPLATES,
   ORG_FORM_TEMPLATES,
   parseTemplateOrgId,
+  RATE_FORM_TEMPLATES,
   remapDemoSeed,
 } from "./templates";
 
@@ -199,5 +200,22 @@ describe("form templates", () => {
       expect(template.fields.description.length).toBeGreaterThan(0);
       expect(["pre_purchase", "roof", "safety"]).toContain(template.fields.reportType);
     }
+  });
+
+  it("fills rate card fields from the Harbourline seed rates", () => {
+    expect(RATE_FORM_TEMPLATES.map((template) => template.id)).toEqual([
+      "pre-purchase",
+      "storm",
+      "booklet",
+    ]);
+    for (const template of RATE_FORM_TEMPLATES) {
+      expect(template.fields.description.length).toBeGreaterThan(0);
+      expect(Number(template.fields.unitPrice)).toBeGreaterThan(0);
+      expect(["each", "hours", "m2"]).toContain(template.fields.unit);
+      expect(["GST", "GST_FREE"]).toContain(template.fields.taxCode);
+      expect(["inclusive", "exclusive"]).toContain(template.fields.amountKind);
+    }
+    const booklet = RATE_FORM_TEMPLATES.find((template) => template.id === "booklet");
+    expect(booklet?.fields.taxCode).toBe("GST_FREE");
   });
 });
