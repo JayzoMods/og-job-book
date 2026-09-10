@@ -4,27 +4,23 @@ export function AppBackdrop() {
       <svg className="app-harbour" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="ogjb-bg-sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--navy)" stopOpacity="0.42" />
-            <stop offset="48%" stopColor="var(--navy)" stopOpacity="0.12" />
+            <stop offset="0%" stopColor="var(--navy)" stopOpacity="0.28" />
+            <stop offset="55%" stopColor="var(--navy)" stopOpacity="0.08" />
             <stop offset="100%" stopColor="var(--paper)" stopOpacity="0" />
           </linearGradient>
-          <radialGradient id="ogjb-bg-sun" cx="78%" cy="18%" r="28%">
-            <stop offset="0%" stopColor="var(--copper)" stopOpacity="0.95" />
-            <stop offset="38%" stopColor="var(--copper)" stopOpacity="0.35" />
+          <radialGradient id="ogjb-bg-sun" cx="78%" cy="16%" r="32%">
+            <stop offset="0%" stopColor="var(--copper)" stopOpacity="0.7" />
+            <stop offset="45%" stopColor="var(--copper)" stopOpacity="0.18" />
             <stop offset="100%" stopColor="var(--copper)" stopOpacity="0" />
           </radialGradient>
-          <linearGradient id="ogjb-bg-water" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--navy)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--navy)" stopOpacity="0.55" />
-          </linearGradient>
           <linearGradient id="ogjb-bg-page" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--foam)" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="var(--paper)" stopOpacity="0.2" />
+            <stop offset="0%" stopColor="var(--foam)" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="var(--paper)" stopOpacity="0.12" />
           </linearGradient>
         </defs>
         <rect width="1440" height="900" fill="url(#ogjb-bg-sky)" />
-        <circle className="app-sun" cx="1120" cy="168" r="210" fill="url(#ogjb-bg-sun)" />
-        <circle className="app-sun-core" cx="1120" cy="168" r="46" fill="var(--copper)" />
+        <circle className="app-sun" cx="1140" cy="150" r="240" fill="url(#ogjb-bg-sun)" />
+        <circle className="app-sun-core" cx="1140" cy="150" r="38" fill="var(--copper)" />
         <g className="app-stars">
           <circle cx="180" cy="90" r="1.6" />
           <circle cx="260" cy="150" r="1.2" />
@@ -37,32 +33,24 @@ export function AppBackdrop() {
           <circle cx="1280" cy="64" r="1.4" />
           <circle cx="1360" cy="140" r="1.2" />
         </g>
-        <path
-          className="app-headland"
-          d="M-40 430 C120 390 220 450 360 420 C520 380 620 455 780 430 C920 408 1040 470 1180 445 C1280 428 1380 455 1480 430 L1480 900 L-40 900 Z"
-        />
         <g className="app-water">
           <path
-            d="M-40 520 C180 490 360 545 560 518 C780 488 980 545 1220 520 C1340 508 1420 528 1480 518 L1480 900 L-40 900 Z"
-            fill="url(#ogjb-bg-water)"
-          />
-          <path
             className="app-tide app-tide-a"
-            d="M-80 590 C140 560 340 620 560 592 C800 560 1040 625 1280 598 C1380 588 1460 605 1520 596"
+            d="M-80 620 C140 590 340 650 560 622 C800 590 1040 655 1280 628 C1380 618 1460 635 1520 626"
             fill="none"
           />
           <path
             className="app-tide app-tide-b"
-            d="M-60 650 C160 622 380 678 620 652 C860 624 1100 684 1340 658 C1420 650 1480 662 1540 654"
+            d="M-60 690 C160 662 380 718 620 692 C860 664 1100 724 1340 698 C1420 690 1480 702 1540 694"
             fill="none"
           />
           <path
             className="app-tide app-tide-c"
-            d="M-40 710 C180 686 400 738 640 714 C900 686 1140 748 1380 722"
+            d="M-40 760 C180 736 400 788 640 764 C900 736 1140 798 1380 772"
             fill="none"
           />
         </g>
-        <g className="app-ledger" transform="translate(980 470) rotate(-8)">
+        <g className="app-ledger" transform="translate(1040 520) rotate(-6)">
           <path
             d="M0 12h92c22 0 32 14 62 14h16v150h-24c-22 0-32-14-62-14H0V12Z"
             fill="url(#ogjb-bg-page)"
@@ -79,10 +67,6 @@ export function AppBackdrop() {
           />
           <rect x="18" y="118" width="52" height="16" rx="6" fill="var(--navy)" opacity="0.45" />
           <rect x="112" y="118" width="40" height="8" rx="3" fill="var(--copper)" opacity="0.55" />
-        </g>
-        <g className="app-glint">
-          <path d="M1118 214 L1122 214 L1132 520 L1108 520 Z" />
-          <path d="M1040 250 L1043 250 L1054 500 L1028 500 Z" />
         </g>
       </svg>
       <div className="app-mist" />

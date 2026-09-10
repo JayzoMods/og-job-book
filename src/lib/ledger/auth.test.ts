@@ -256,9 +256,13 @@ describe("isPublicTenantPath", () => {
     expect(isPublicTenantPath("/sign-in")).toBe(true);
     expect(isPublicTenantPath("/sign-up/continue")).toBe(true);
     expect(isPublicTenantPath("/api/auth/sign-up")).toBe(true);
+    expect(isPublicTenantPath("/how-to-use")).toBe(true);
+    expect(isPublicTenantPath("/how-to-use/")).toBe(true);
   });
 
   it("does not treat the ledger or minting APIs as public", () => {
+    expect(isPublicTenantPath("")).toBe(false);
+    expect(isPublicTenantPath("/how-to-use-extra")).toBe(false);
     expect(isPublicTenantPath("/")).toBe(false);
     expect(isPublicTenantPath(`/jobs/${DEMO_IDS.jobQuoted}`)).toBe(false);
     expect(isPublicTenantPath("/api/quote-share")).toBe(false);

@@ -241,7 +241,7 @@ export function isAuthEntryPath(pathname: string): boolean {
   );
 }
 
-/** Share links, webhooks, OpenAPI, and auth pages stay reachable with sign-in on. */
+/** Share links, webhooks, OpenAPI, how-to-use, and auth pages stay reachable with sign-in on. */
 export function isPublicTenantPath(pathname: string): boolean {
   const path = tenantPathname(pathname);
   if (path === "/openapi.yaml") {
@@ -254,6 +254,9 @@ export function isPublicTenantPath(pathname: string): boolean {
     return true;
   }
   if (isAuthEntryPath(path)) {
+    return true;
+  }
+  if (path === "/how-to-use") {
     return true;
   }
   return path.startsWith("/q/");

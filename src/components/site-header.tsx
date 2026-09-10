@@ -3,6 +3,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { TourStartButton } from "@/components/tour-start-button";
 
 const NAV = [
+  { href: "/how-to-use", label: "How to use" },
   { href: "/#jobs", label: "Jobs" },
   { href: "/#customers", label: "Customers" },
   { href: "/#rates", label: "Rate card" },
