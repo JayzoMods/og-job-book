@@ -1,15 +1,19 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   adjacentTourStep,
+  detectTourCatalog,
   isTourStepId,
+  pushTourUrl,
+  replaceTourUrl,
   TOUR_PARAM,
-  TOUR_STEPS,
+  TOUR_SYNC_EVENT,
+  tourCatalogSteps,
   tourHref,
-  tourStepById,
   tourStepNumber,
+  type TourCatalog,
   type TourStep,
 } from "@/lib/tour/steps";
 
@@ -25,6 +29,10 @@ const WAIT_MS = 2800;
 
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function readTourId(): string | null {
+  return new URLSearchParams(window.location.search).get(TOUR_PARAM);
 }
 
 function measureTarget(el: Element): SpotlightRect {
@@ -54,6 +62,15 @@ function computeCardStyle(rect: SpotlightRect | null, cardHeight: number): CSSPr
   return { width, top, left, bottom: "auto", transform: "none" };
 }
 
+function shouldScrollToTarget(step: TourStep, el: Element): boolean {
+  if (step.id === "welcome" || step.id === "wrap") {
+    return false;
+  }
+  const box = el.getBoundingClientRect();
+  const header = 88;
+  return box.top < header || box.bottom > window.innerHeight - 24;
+}
+
 export function ProductTour() {
   const router = useRouter();
   const pathname = usePathname();
@@ -64,25 +81,55 @@ export function ProductTour() {
   const [rect, setRect] = useState<SpotlightRect | null>(null);
   const [missing, setMissing] = useState(false);
   const [cardStyle, setCardStyle] = useState<CSSProperties>({});
+  const [stepId, setStepId] = useState<string | null>(() => searchParams.get(TOUR_PARAM));
+  const [catalog, setCatalog] = useState<TourCatalog>("demo");
+  const [ready, setReady] = useState(false);
 
-  const stepId = searchParams.get(TOUR_PARAM);
-  const step = isTourStepId(stepId) ? tourStepById(stepId) : null;
+  useLayoutEffect(() => {
+    setCatalog(detectTourCatalog());
+    setReady(true);
+  }, [pathname, stepId]);
+
+  const catalogSteps = tourCatalogSteps(catalog);
+  const matched = catalogSteps.find((item) => item.id === stepId);
+  const step = matched ?? (stepId && isTourStepId(stepId) ? catalogSteps[0] ?? null : null);
   const printRoute = pathname.includes("/print");
-  const active = Boolean(step) && !printRoute;
+  const active = ready && Boolean(step) && !printRoute;
 
   const go = useCallback(
     (next: TourStep | null) => {
       if (!next) {
-        const params = new URLSearchParams(searchParams.toString());
+        const params = new URLSearchParams(window.location.search);
         params.delete(TOUR_PARAM);
         const query = params.toString();
-        router.replace(query ? `${pathname}?${query}` : pathname);
+        replaceTourUrl(query ? `${pathname}?${query}` : pathname);
+        setStepId(null);
+        setRect(null);
+        return;
+      }
+      if (next.path === pathname) {
+        pushTourUrl(tourHref(next));
+        setStepId(next.id);
         return;
       }
       router.push(tourHref(next));
     },
-    [pathname, router, searchParams],
+    [pathname, router],
   );
+
+  useEffect(() => {
+    const sync = () => setStepId(readTourId());
+    window.addEventListener(TOUR_SYNC_EVENT, sync);
+    window.addEventListener("popstate", sync);
+    return () => {
+      window.removeEventListener(TOUR_SYNC_EVENT, sync);
+      window.removeEventListener("popstate", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    setStepId(searchParams.get(TOUR_PARAM));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!active || !step || pathname !== step.path) {
@@ -103,11 +150,13 @@ export function ProductTour() {
       if (cancelled) {
         return;
       }
-      el.scrollIntoView({
-        block: "center",
-        inline: "nearest",
-        behavior: reducedMotion() ? "auto" : "smooth",
-      });
+      if (shouldScrollToTarget(step, el)) {
+        el.scrollIntoView({
+          block: "center",
+          inline: "nearest",
+          behavior: reducedMotion() ? "auto" : "smooth",
+        });
+      }
       window.clearTimeout(scrollTimer);
       scrollTimer = window.setTimeout(
         () => {
@@ -116,7 +165,7 @@ export function ProductTour() {
             setMissing(false);
           }
         },
-        reducedMotion() ? 40 : 320,
+        reducedMotion() || !shouldScrollToTarget(step, el) ? 40 : 320,
       );
     };
 
@@ -184,17 +233,17 @@ export function ProductTour() {
       }
       if (event.key === "ArrowRight" || event.key === "Enter") {
         event.preventDefault();
-        go(adjacentTourStep(step.id, 1));
+        go(adjacentTourStep(step.id, 1, catalogSteps));
         return;
       }
       if (event.key === "ArrowLeft") {
         event.preventDefault();
-        go(adjacentTourStep(step.id, -1));
+        go(adjacentTourStep(step.id, -1, catalogSteps));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, go, step]);
+  }, [active, catalogSteps, go, step]);
 
   useEffect(() => {
     if (!active) {
@@ -207,28 +256,49 @@ export function ProductTour() {
     return null;
   }
 
-  const index = tourStepNumber(step.id);
-  const total = TOUR_STEPS.length;
-  const prev = adjacentTourStep(step.id, -1);
-  const next = adjacentTourStep(step.id, 1);
+  const index = tourStepNumber(step.id, catalogSteps);
+  const total = catalogSteps.length;
+  const prev = adjacentTourStep(step.id, -1, catalogSteps);
+  const next = adjacentTourStep(step.id, 1, catalogSteps);
 
   return (
     <div
       className={`tour-root print:hidden${rect ? "" : " is-missing"}`}
       role="presentation"
     >
-      <div className="tour-catch" aria-hidden="true" />
       {rect ? (
-        <div
-          className="tour-spot"
-          style={{
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-          }}
-        />
-      ) : null}
+        <>
+          <div className="tour-dim" style={{ top: 0, left: 0, right: 0, height: rect.top }} />
+          <div
+            className="tour-dim"
+            style={{ top: rect.top, left: 0, width: rect.left, height: rect.height }}
+          />
+          <div
+            className="tour-dim"
+            style={{
+              top: rect.top,
+              left: rect.left + rect.width,
+              right: 0,
+              height: rect.height,
+            }}
+          />
+          <div
+            className="tour-dim"
+            style={{ top: rect.top + rect.height, left: 0, right: 0, bottom: 0 }}
+          />
+          <div
+            className="tour-spot"
+            style={{
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height,
+            }}
+          />
+        </>
+      ) : (
+        <div className="tour-catch" aria-hidden="true" />
+      )}
       <div
         ref={cardRef}
         className="tour-card"
@@ -249,7 +319,7 @@ export function ProductTour() {
           {missing ? step.missing : step.body}
         </p>
         <ol className="tour-dots" aria-label="Walkthrough steps">
-          {TOUR_STEPS.map((item, i) => (
+          {catalogSteps.map((item, i) => (
             <li key={item.id}>
               <button
                 type="button"

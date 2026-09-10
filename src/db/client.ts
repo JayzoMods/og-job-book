@@ -27,7 +27,7 @@ export function getDb(): AppDb | null {
   if (!globalForDb.jobBookPool) {
     globalForDb.jobBookPool = new Pool({
       connectionString: url,
-      max: 1,
+      max: 4,
       connectionTimeoutMillis: 3000,
       ssl: databaseNeedsSsl(url) ? { rejectUnauthorized: true } : undefined,
     });

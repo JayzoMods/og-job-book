@@ -1,26 +1,36 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { TOUR_STEPS, tourHref } from "@/lib/tour/steps";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  detectTourCatalog,
+  pushTourUrl,
+  tourCatalogSteps,
+  tourHref,
+} from "@/lib/tour/steps";
 
 export function TourStartButton({
   label = "Walkthrough",
   className = "btn btn-ghost",
-  tourId,
 }: {
   label?: string;
   className?: string;
-  tourId?: string;
 }) {
   const router = useRouter();
-  const first = TOUR_STEPS[0];
+  const pathname = usePathname();
 
   return (
     <button
       type="button"
       className={className}
-      {...(tourId ? { "data-tour": tourId } : {})}
       onClick={() => {
+        const first = tourCatalogSteps(detectTourCatalog())[0];
+        if (!first) {
+          return;
+        }
+        if (pathname === first.path) {
+          pushTourUrl(tourHref(first));
+          return;
+        }
         router.push(tourHref(first));
       }}
     >

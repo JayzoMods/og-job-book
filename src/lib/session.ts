@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { getDb, type AppDb } from "@/db/client";
 import {
   deleteAuthSessionByHash,
@@ -63,7 +64,7 @@ export async function destroyUserSession(db: AppDb | null): Promise<void> {
   await clearSessionCookie();
 }
 
-export async function resolveAuthUser(): Promise<AuthUserRow | null> {
+export const resolveAuthUser = cache(async function resolveAuthUser(): Promise<AuthUserRow | null> {
   if (!authConfigured()) {
     return null;
   }
@@ -77,4 +78,4 @@ export async function resolveAuthUser(): Promise<AuthUserRow | null> {
     return null;
   }
   return parseUserId(user.id) ? user : null;
-}
+});

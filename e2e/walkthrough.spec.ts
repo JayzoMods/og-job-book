@@ -14,13 +14,18 @@ async function stripPortal(page: Page) {
 }
 
 test.describe("product walkthrough", () => {
-  test("opens from the header and highlights the hero, then Load demo", async ({
+  test("opens from the header and highlights the hero, then the next home step", async ({
     page,
   }) => {
     await stripPortal(page);
     await page.goto("/");
+    const howItWorks = page.getByRole("button", { name: "How it works" });
     await expect(page.getByRole("button", { name: "Walkthrough" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "How it works" })).toBeVisible();
+    if (await page.getByRole("link", { name: "Sign in" }).count()) {
+      await expect(howItWorks).toHaveCount(0);
+      return;
+    }
+    await expect(howItWorks).toBeVisible();
 
     await page.getByRole("button", { name: "Walkthrough" }).click();
     await expect(page).toHaveURL(/\?tour=welcome/);
@@ -32,15 +37,30 @@ test.describe("product walkthrough", () => {
     await expect(page.locator(".tour-spot")).toBeVisible();
 
     await dialog.getByRole("button", { name: "Next" }).click();
-    await expect(page).toHaveURL(/\?tour=load-demo/);
-    await expect(
-      dialog.getByRole("heading", { name: "Start from a seeded org" }),
-    ).toBeVisible();
-    await expect(page.locator("[data-tour='load-demo']")).toBeVisible();
+    if (await page.locator("form[data-tour='load-demo']").count()) {
+      await expect(page).toHaveURL(/\?tour=load-demo/);
+      await expect(
+        dialog.getByRole("heading", { name: "Start from a seeded org" }),
+      ).toBeVisible();
+      await expect(page.locator("[data-tour='load-demo']")).toBeVisible();
+    } else {
+      await expect(page).toHaveURL(/\?tour=organisation/);
+      await expect(
+        dialog.getByRole("heading", { name: "ABN, GST, and pay details" }),
+      ).toBeVisible();
+    }
 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(page).not.toHaveURL(/tour=/);
+    const hero = page.locator("[data-tour='hero']");
+    const heading = hero.getByRole("heading", { level: 1 });
+    const heroBox = await hero.boundingBox();
+    const headingBox = await heading.boundingBox();
+    expect(heroBox).toBeTruthy();
+    expect(headingBox).toBeTruthy();
+    expect(headingBox!.y).toBeGreaterThanOrEqual(heroBox!.y - 4);
+    expect(headingBox!.x + headingBox!.width).toBeLessThanOrEqual(heroBox!.x + heroBox!.width + 8);
   });
 
   test("after Load demo, a mid-tour job step highlights the quote", async ({
@@ -48,7 +68,12 @@ test.describe("product walkthrough", () => {
   }) => {
     await stripPortal(page);
     await page.goto("/");
-    await page.getByRole("button", { name: "Load demo" }).click();
+    const loadDemo = page.getByRole("button", { name: "Load demo" });
+    if ((await loadDemo.count()) === 0) {
+      test.skip(true, "Load demo is off while sign-in is on.");
+      return;
+    }
+    await loadDemo.click();
     await expect(page.getByRole("textbox", { name: "Business name" })).toHaveValue(
       "Harbourline Inspections Pty Ltd",
       { timeout: 30_000 },

@@ -37,6 +37,7 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = "syd1";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = authConfigured() ? await resolveAuthUser() : null;

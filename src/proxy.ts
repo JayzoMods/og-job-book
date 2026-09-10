@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { authConfigured, isPublicTenantPath, SESSION_COOKIE } from "@/lib/ledger/auth";
+import {
+  authConfigured,
+  isAuthEntryPath,
+  isPublicTenantPath,
+  SESSION_COOKIE,
+} from "@/lib/ledger/auth";
 
 export function proxy(request: NextRequest) {
   if (!authConfigured()) {
     return NextResponse.next();
   }
   const path = request.nextUrl.pathname;
+  const session = request.cookies.get(SESSION_COOKIE)?.value?.trim() ?? "";
+  if (session !== "" && isAuthEntryPath(path)) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
   if (isPublicTenantPath(path)) {
     return NextResponse.next();
   }
-  const session = request.cookies.get(SESSION_COOKIE)?.value?.trim() ?? "";
   if (session !== "") {
     return NextResponse.next();
   }

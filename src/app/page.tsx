@@ -68,10 +68,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const state = await loadDb();
   const db = state.ok ? state.db : null;
   const org = state.ok ? state.org : null;
-  const jobList = db && org ? await listJobs(db, org.id) : [];
-  const customerList = db && org ? await listCustomers(db, org.id) : [];
-  const rateList = db && org ? await listRateItems(db, org.id) : [];
-  const recurringList = db && org ? await listRecurringForOrg(db, org.id) : [];
+  const [jobList, customerList, rateList, recurringList] =
+    db && org
+      ? await Promise.all([
+          listJobs(db, org.id),
+          listCustomers(db, org.id),
+          listRateItems(db, org.id),
+          listRecurringForOrg(db, org.id),
+        ])
+      : [[], [], [], []];
   const today = todayIsoSydney();
   const gstQuarter = parseGstQuarter("", today);
   const quarterChoices = gstQuarterChoices(today);
@@ -104,7 +109,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         className="surface surface-hero rise grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_17rem]"
         data-tour="hero"
       >
-        <div className="relative z-10">
+        <div className="relative z-10 min-w-0">
           <p className="kicker">Australian ledger</p>
           <h1 className="mt-3 font-display text-4xl tracking-tight sm:text-5xl">
             Job, quote, invoice — with ABN and GST on the document.
@@ -126,15 +131,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </button>
               </form>
             ) : !org ? (
-              <p className="text-sm text-muted" data-tour="load-demo">
+              <p className="text-sm text-muted">
                 Save the organisation below for this signed-in user. Load demo stays off so
                 it cannot wipe other orgs.
               </p>
             ) : null}
-            <TourStartButton
-              label="How it works"
-              tourId={showLoadDemo || !org ? undefined : "load-demo"}
-            />
+            <TourStartButton label="How it works" />
           </div>
         </div>
         <div className="relative z-10 mx-auto w-full max-w-sm lg:max-w-none">

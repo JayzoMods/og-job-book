@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { signUpAction } from "@/app/auth-actions";
+import { PendingSubmit } from "@/components/pending-submit";
 import { authConfigured } from "@/lib/ledger/auth";
+import { resolveAuthUser } from "@/lib/session";
 
 const ERRORS: Record<string, string> = {
   fields: "Email and a password of at least 8 characters are required.",
@@ -15,6 +18,10 @@ export default async function SignUpPage({
   const params = await searchParams;
   const errorKey = typeof params.error === "string" ? params.error : "";
   const error = ERRORS[errorKey];
+
+  if (authConfigured() && (await resolveAuthUser())) {
+    redirect("/");
+  }
 
   if (!authConfigured()) {
     return (
@@ -71,9 +78,11 @@ export default async function SignUpPage({
               maxLength={128}
             />
           </label>
-          <button type="submit" className="btn btn-primary mt-2 self-start">
-            Sign up
-          </button>
+          <PendingSubmit
+            idle="Sign up"
+            busy="Creating account…"
+            className="btn btn-primary mt-2 self-start"
+          />
         </form>
         <p className="mt-6 text-sm text-muted">
           Already have an account?{" "}

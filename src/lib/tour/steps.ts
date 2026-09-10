@@ -160,6 +160,65 @@ export const TOUR_STEPS = [
 
 export type TourStepId = (typeof TOUR_STEPS)[number]["id"];
 
+export type TourCatalog = "demo" | "account-setup" | "account-ledger";
+
+const ACCOUNT_SETUP_IDS = ["welcome", "organisation", "wrap"] as const;
+const ACCOUNT_LEDGER_IDS = [
+  "welcome",
+  "glance",
+  "jobs",
+  "create-job",
+  "customers",
+  "rates",
+  "organisation",
+  "gst-quarter",
+  "export",
+  "wrap",
+] as const;
+
+const ACCOUNT_WELCOME_BODY =
+  "OG Job Book follows one path: job → quote → invoice → record payment. Books stay on this account. Save the organisation to start. A new account gets 24 hours. Not tax advice.";
+const ACCOUNT_WRAP_BODY =
+  "Save the organisation if you have not, then create a job → quote → invoice → record payment. Print stays A4. This is not tax advice, and it does not lodge a BAS.";
+
+export function detectTourCatalog(): TourCatalog {
+  if (typeof document === "undefined") {
+    return "demo";
+  }
+  if (document.querySelector("form[data-tour='load-demo']")) {
+    return "demo";
+  }
+  if (document.querySelector("[data-tour='glance']")) {
+    return "account-ledger";
+  }
+  return "account-setup";
+}
+
+export function tourCatalogSteps(catalog: TourCatalog): TourStep[] {
+  const ids =
+    catalog === "demo"
+      ? TOUR_STEPS.map((step) => step.id)
+      : catalog === "account-setup"
+        ? ACCOUNT_SETUP_IDS
+        : ACCOUNT_LEDGER_IDS;
+  return ids.map((id) => {
+    const step = tourStepById(id);
+    if (!step) {
+      throw new Error(`tour_step:${id}`);
+    }
+    if (catalog === "demo") {
+      return step;
+    }
+    if (id === "welcome") {
+      return { ...step, body: ACCOUNT_WELCOME_BODY };
+    }
+    if (id === "wrap") {
+      return { ...step, body: ACCOUNT_WRAP_BODY };
+    }
+    return step;
+  });
+}
+
 export function isTourStepId(value: string | null): value is TourStepId {
   return Boolean(value && TOUR_STEPS.some((step) => step.id === value));
 }
@@ -175,18 +234,34 @@ export function tourHref(step: TourStep): string {
   return `${step.path}?${TOUR_PARAM}=${encodeURIComponent(step.id)}`;
 }
 
-export function adjacentTourStep(id: string, delta: number): TourStep | null {
-  const index = TOUR_STEPS.findIndex((step) => step.id === id);
+export function adjacentTourStep(
+  id: string,
+  delta: number,
+  steps: readonly TourStep[] = TOUR_STEPS,
+): TourStep | null {
+  const index = steps.findIndex((step) => step.id === id);
   if (index < 0) {
     return null;
   }
   const next = index + delta;
-  if (next < 0 || next >= TOUR_STEPS.length) {
+  if (next < 0 || next >= steps.length) {
     return null;
   }
-  return TOUR_STEPS[next] ?? null;
+  return steps[next] ?? null;
 }
 
-export function tourStepNumber(id: string): number {
-  return TOUR_STEPS.findIndex((step) => step.id === id) + 1;
+export function tourStepNumber(id: string, steps: readonly TourStep[] = TOUR_STEPS): number {
+  return steps.findIndex((step) => step.id === id) + 1;
+}
+
+export const TOUR_SYNC_EVENT = "og-job-book-tour";
+
+export function replaceTourUrl(href: string): void {
+  window.history.replaceState(window.history.state, "", href);
+  window.dispatchEvent(new Event(TOUR_SYNC_EVENT));
+}
+
+export function pushTourUrl(href: string): void {
+  window.history.pushState(window.history.state, "", href);
+  window.dispatchEvent(new Event(TOUR_SYNC_EVENT));
 }

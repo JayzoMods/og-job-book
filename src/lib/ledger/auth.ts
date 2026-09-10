@@ -225,10 +225,25 @@ export function tenantApiStatus(gate: TenantGate): 200 | 401 | 403 | 404 {
   return 200;
 }
 
+function tenantPathname(pathname: string): string {
+  const raw = pathname.split("?")[0] || "/";
+  return raw.length > 1 && raw.endsWith("/") ? raw.slice(0, -1) : raw;
+}
+
+/** Sign-in and sign-up. A session on these paths should go home. */
+export function isAuthEntryPath(pathname: string): boolean {
+  const path = tenantPathname(pathname);
+  return (
+    path === "/sign-in" ||
+    path.startsWith("/sign-in/") ||
+    path === "/sign-up" ||
+    path.startsWith("/sign-up/")
+  );
+}
+
 /** Share links, webhooks, OpenAPI, and auth pages stay reachable with sign-in on. */
 export function isPublicTenantPath(pathname: string): boolean {
-  const raw = pathname.split("?")[0] || "/";
-  const path = raw.length > 1 && raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  const path = tenantPathname(pathname);
   if (path === "/openapi.yaml") {
     return true;
   }
@@ -238,10 +253,7 @@ export function isPublicTenantPath(pathname: string): boolean {
   if (path === "/api/auth" || path.startsWith("/api/auth/")) {
     return true;
   }
-  if (path === "/sign-in" || path.startsWith("/sign-in/")) {
-    return true;
-  }
-  if (path === "/sign-up" || path.startsWith("/sign-up/")) {
+  if (isAuthEntryPath(path)) {
     return true;
   }
   return path.startsWith("/q/");

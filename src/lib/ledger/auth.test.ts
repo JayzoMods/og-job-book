@@ -12,6 +12,7 @@ import {
   hashSessionToken,
   hashTrialIp,
   isAdminEmail,
+  isAuthEntryPath,
   isPublicTenantPath,
   orgOwnsResource,
   parseAdminEmail,
@@ -265,6 +266,15 @@ describe("isPublicTenantPath", () => {
     expect(isPublicTenantPath("/api/send-email")).toBe(false);
     expect(isPublicTenantPath("/api/queue-run")).toBe(false);
     expect(isPublicTenantPath("/gst-quarter/print")).toBe(false);
+  });
+});
+
+describe("isAuthEntryPath", () => {
+  it("matches sign-in and sign-up only", () => {
+    expect(isAuthEntryPath("/sign-in")).toBe(true);
+    expect(isAuthEntryPath("/sign-up/continue")).toBe(true);
+    expect(isAuthEntryPath("/")).toBe(false);
+    expect(isAuthEntryPath("/api/auth/sign-up")).toBe(false);
   });
 });
 

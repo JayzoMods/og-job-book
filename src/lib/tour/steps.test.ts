@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   adjacentTourStep,
+  detectTourCatalog,
   isTourStepId,
   TOUR_PARAM,
   TOUR_STEPS,
+  tourCatalogSteps,
   tourHref,
   tourStepById,
   tourStepNumber,
@@ -51,5 +53,23 @@ describe("tour steps", () => {
       "\n",
     );
     expect(blob).not.toMatch(/REDIS_URL|RESEND_|STRIPE_|XERO_|CLERK_|AI_GATEWAY|ABR_GUID/);
+  });
+
+  it("uses a short signed-in catalog that stays on home", () => {
+    const setup = tourCatalogSteps("account-setup");
+    expect(setup.map((step) => step.id)).toEqual(["welcome", "organisation", "wrap"]);
+    expect(setup.every((step) => step.path === "/")).toBe(true);
+    expect(setup[0]?.body).toMatch(/Save the organisation/i);
+    expect(setup.at(-1)?.body).not.toMatch(/Load demo/i);
+    expect(adjacentTourStep("welcome", 1, setup)?.id).toBe("organisation");
+    expect(tourStepNumber("organisation", setup)).toBe(2);
+
+    const ledger = tourCatalogSteps("account-ledger");
+    expect(ledger.map((step) => step.id)).not.toContain("load-demo");
+    expect(ledger.every((step) => step.path === "/")).toBe(true);
+  });
+
+  it("defaults to the demo catalog when there is no document", () => {
+    expect(detectTourCatalog()).toBe("demo");
   });
 });
