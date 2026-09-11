@@ -4,7 +4,7 @@ A narrow Australian ledger: **job → quote → invoice → record payment**, wi
 
 This is **not** ServiceM8, not a BAS agent, not tax advice, and it does not lodge anything with the ATO. It is a focused demonstration of getting the money maths right on a real Australian trade or inspection business's paperwork.
 
-**Live demo:** [og-job-book.vercel.app](https://og-job-book.vercel.app) — with sign-in off, click **Load demo**; with sign-in on, create an account and click **Fill sample books** to seed that account only.
+**Live demo:** [og-job-book.vercel.app](https://og-job-book.vercel.app) — sign-in is on there, so create an account and click **Fill sample books** to seed that account only.
 **Guide:** [How to use](https://og-job-book.vercel.app/how-to-use)
 **Source:** [github.com/JayzoMods/og-job-book](https://github.com/JayzoMods/og-job-book)
 **Contact:** [enquiries@ogdigitaldesigns.com.au](mailto:enquiries@ogdigitaldesigns.com.au)
