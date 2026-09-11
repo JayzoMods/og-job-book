@@ -36,7 +36,7 @@ test.describe("product walkthrough", () => {
     ).toBeVisible();
     await expect(page.locator(".tour-spot")).toBeVisible();
 
-    await dialog.getByRole("button", { name: "Next" }).click();
+    await dialog.getByRole("button", { name: "Next", exact: true }).click();
     if (await page.locator("form[data-tour='load-demo']").count()) {
       await expect(page).toHaveURL(/\?tour=load-demo/);
       await expect(
