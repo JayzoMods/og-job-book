@@ -5,11 +5,11 @@ import { TourStartButton } from "@/components/tour-start-button";
 const NAV = [
   { href: "/how-to-use", label: "How to use" },
   { href: "/#jobs", label: "Jobs" },
-  { href: "/#customers", label: "Customers" },
-  { href: "/#rates", label: "Rate card" },
-  { href: "/#gst-quarter", label: "GST" },
-  { href: "/#export", label: "Export" },
   { href: "/#organisation", label: "Organisation" },
+  { href: "/#customers", label: "Customers" },
+  { href: "/#export", label: "Export" },
+  { href: "/#gst-quarter", label: "GST" },
+  { href: "/#rates", label: "Rate card" },
 ] as const;
 
 function NavLinks({ className }: { className?: string }) {
