@@ -81,13 +81,30 @@ export function ProductTour() {
   const [rect, setRect] = useState<SpotlightRect | null>(null);
   const [missing, setMissing] = useState(false);
   const [cardStyle, setCardStyle] = useState<CSSProperties>({});
-  const [stepId, setStepId] = useState<string | null>(() => searchParams.get(TOUR_PARAM));
+  const urlStepId = searchParams.get(TOUR_PARAM);
+  const [stepId, setStepId] = useState<string | null>(() => urlStepId);
+  const [seenUrlStepId, setSeenUrlStepId] = useState(urlStepId);
+  if (urlStepId !== seenUrlStepId) {
+    setSeenUrlStepId(urlStepId);
+    setStepId(urlStepId);
+  }
   const [catalog, setCatalog] = useState<TourCatalog>("demo");
   const [ready, setReady] = useState(false);
 
+  // Catalog reads the live DOM (demo form vs account glance). Schedule after layout
+  // so setState is not synchronous inside the effect body (react-hooks/set-state-in-effect).
   useLayoutEffect(() => {
-    setCatalog(detectTourCatalog());
-    setReady(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+      setCatalog(detectTourCatalog());
+      setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [pathname, stepId]);
 
   const catalogSteps = tourCatalogSteps(catalog);
@@ -126,10 +143,6 @@ export function ProductTour() {
       window.removeEventListener("popstate", sync);
     };
   }, []);
-
-  useEffect(() => {
-    setStepId(searchParams.get(TOUR_PARAM));
-  }, [searchParams]);
 
   useEffect(() => {
     if (!active || !step || pathname !== step.path) {
