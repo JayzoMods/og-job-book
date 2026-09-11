@@ -251,7 +251,7 @@ export function StatementSheet({
               ))}
             </dl>
             <p className="mt-2 text-xs text-[#4b5563]">
-              Shown as given. Not Confirmation of Payee. We do not check this account.
+              Shown as entered. Not Confirmation of Payee — we do not check the account.
             </p>
           </section>
         ) : null}
@@ -259,8 +259,8 @@ export function StatementSheet({
         <p className="mt-10 text-xs text-[#4b5563]">
           This is a statement of account, not a tax invoice. Amount owing is after recorded
           payments, credits, and retention held as at the date above. Retention is a hold, not a
-          GST adjustment. This is not tax advice and does not lodge a BAS.
-          Payee. Amounts are AUD.
+          GST adjustment. This is not tax advice, and it does not lodge with the ATO. Amounts are
+          AUD.
         </p>
       </article>
     </div>
@@ -372,9 +372,10 @@ export function RemittanceSheet({
         </dl>
 
         <p className="mt-10 text-xs text-[#4b5563]">
-          This remittance advice records a payment entered in OG Job Book. It is not a tax invoice,
-          not a credit note, not Confirmation of Payee, and not a refund. We do not check the
-          account. This is not tax advice and does not lodge a BAS. Amounts are AUD.
+          This remittance advice records a payment entered in OG Job Book. It is not a tax
+          invoice, not a credit note, and not a refund. It is not Confirmation of Payee — we do
+          not check the account. This is not tax advice, and it does not lodge with the ATO.
+          Amounts are AUD.
         </p>
       </article>
     </div>

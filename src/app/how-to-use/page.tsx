@@ -10,7 +10,7 @@ import {
 export const metadata: Metadata = {
   title: "How to use",
   description:
-    "Simple steps for OG Job Book: job → quote → invoice → record payment, with ABN and GST on the document. Not tax advice.",
+    "A short guide to OG Job Book: job → quote → invoice → record payment, with an ABN checksum and GST worked out on the document itself.",
 };
 
 export default function HowToUsePage() {
@@ -20,9 +20,11 @@ export default function HowToUsePage() {
         <p className="kicker">Guide</p>
         <h1 className="mt-3 font-display text-4xl tracking-tight">How to use OG Job Book</h1>
         <p className="mt-4 max-w-2xl text-muted">
-          A narrow Australian ledger for a small trade or inspection business. One path: job
-          → quote → invoice → record payment. ABN checksum and GST sit on the document.
-          This is not tax advice, and it does not lodge a BAS.
+          OG Job Book is a focused ledger for a small Australian trade or inspection
+          business. It follows one straightforward path — job → quote → invoice → record
+          payment — and the ABN checksum and GST maths sit right there on the document
+          itself, not tucked away in a settings page. It isn’t tax advice, and it doesn’t
+          lodge anything with the ATO.
         </p>
       </section>
 
@@ -52,18 +54,34 @@ export default function HowToUsePage() {
       <section className="surface p-6 sm:p-8">
         <h2 className="font-display text-2xl">What this is</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-muted">
-          <li>Quotes and invoices show GST, GST-free, and total. Inclusive GST is 1/11 (nearest cent).</li>
-          <li>The ABN uses the ABR checksum. Invalid checksums are flagged in plain English.</li>
-          <li>Customers, a rate card, print, statements, and export stay in this ledger.</li>
-          <li>It is not ServiceM8: no scheduling, GPS, roster, customer portal, or inventory.</li>
-          <li>It does not lodge a BAS, and it is not a BAS agent.</li>
+          <li>
+            Every quote and invoice shows GST, GST-free amounts, and the total. Inclusive
+            GST is the total divided by 11, rounded to the nearest cent.
+          </li>
+          <li>
+            The ABN is checked against the official ABR checksum, and any mismatch is
+            flagged in plain English — no jargon.
+          </li>
+          <li>
+            Customers, a rate card, printable documents, statements, and full exports all
+            live in this one ledger.
+          </li>
+          <li>
+            It is not ServiceM8 or any other field-service platform — no scheduling, GPS
+            tracking, staff roster, customer portal, or inventory.
+          </li>
+          <li>
+            It does not lodge a BAS and it is not a BAS agent — treat it as a well-behaved
+            ledger, not tax advice.
+          </li>
         </ul>
       </section>
 
       <section className="surface p-6 sm:p-8">
         <h2 className="font-display text-2xl">Contact</h2>
         <p className="mt-3 max-w-2xl text-sm text-muted">
-          Built by {AGENCY_NAME}. If you want to talk about this product, email Jayden.
+          Built by {AGENCY_NAME}. Questions about this product, or interested in working
+          together? Email Jayden directly.
         </p>
         <p className="mt-4">
           <a className="btn btn-primary" href={`mailto:${CONTACT_EMAIL}`}>

@@ -136,13 +136,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             Job, quote, invoice — with ABN and GST on the document.
           </h1>
           <p className="mt-4 max-w-2xl text-muted">
-            Narrow ledger for a small AU trade or inspection business.
+            A focused ledger for a small Australian trade or inspection business — not a
+            full field-service platform.
             {authOn
               ? state.ok && state.userId
                 ? " Your books stay on this account."
-                : " Sign in to open your books. A new account gets 24 hours."
-              : " No login. Load demo seeds a fictional Sydney inspection org."}{" "}
-            Not tax advice, and it does not lodge a BAS.
+                : " Sign in to open your books. A new account gets a 24-hour trial."
+              : " No login required — click Load demo to seed a fictional Sydney inspection org."}{" "}
+            This is not tax advice, and it does not lodge anything with the ATO.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {showLoadDemo ? (
@@ -172,9 +173,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
           {showSampleBooks ? (
             <p className="mt-3 max-w-2xl text-sm text-muted">
-              Fill sample books copies a fictional inspection ledger onto this account — jobs,
-              quotes, and invoices with GST on the document. It does not wipe other
-              organisations. Or pick a template on the organisation form.
+              Fill sample books adds a fictional inspection ledger to this account — jobs,
+              quotes, and invoices with GST already on the document. It never touches any
+              other organisation. Prefer to start from your own details? Pick a template on
+              the organisation form below instead.
             </p>
           ) : null}
         </div>
@@ -442,10 +444,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               />
             </label>
             <p className="text-sm text-muted sm:col-span-2">
-              If GST registered is off, quotes and invoices do not charge GST. Payment terms
-              set the due date on new invoices. Retention is held when claims and invoices
-              are issued. PayID and BSB print on invoices as entered — we do not check the
-              account.
+              Turn GST registered off and quotes and invoices stop charging GST entirely.
+              Payment terms set the due date on every new invoice, and retention is held
+              automatically whenever a claim or invoice is issued. PayID and BSB print on
+              invoices exactly as entered — we do not verify the account.
             </p>
             {org && !isValidAbn(org.abn) ? (
               <p className="text-sm text-warn sm:col-span-2">
@@ -477,9 +479,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <section className="surface p-6" id="customers" data-tour="customers">
             <h2 className="font-display text-2xl">Customers</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Jobs belong to a customer (name, suburb, optional phone and email). The same
-              customer can have more than one job. Print a statement of account — not a tax
-              invoice. Job notes stay internal. Phone and email are shown as given.
+              Every job belongs to a customer (name, suburb, and optional phone and email),
+              and one customer can have more than one job. Print a statement of account for
+              a customer at any time — it is a summary, not a tax invoice. Job notes stay
+              internal; phone and email print exactly as entered.
             </p>
             {customerList.length === 0 ? (
               <p className="mt-3 text-muted">
@@ -581,8 +584,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <section className="surface p-6" id="export" data-tour="export">
             <h2 className="font-display text-2xl">Export</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Download the books as JSON or CSV. The BAS Check CSV is sales lines in that
-              app’s column order. Job notes and cost are not exported. This is not a BAS.
+              Download the whole ledger as JSON or CSV. The BAS Check CSV shapes sales lines
+              to that app’s column order, for anyone who wants to drop them straight in. Job
+              notes and cost are never exported, and this download is not a BAS.
             </p>
             <form method="get" action="/api/export" className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm">
@@ -627,10 +631,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <section className="surface p-6" id="gst-quarter" data-tour="gst-quarter">
             <h2 className="font-display text-2xl">GST quarter</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Print sales GST for an ATO quarter (Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun) by
-              invoice date. Credit notes reduce the totals. Quotes, drafts, and void
-              invoices are not included. Retention is a hold, not a GST adjustment. This
-              is not a BAS and does not lodge.
+              Print sales GST for one ATO quarter (Jul–Sep, Oct–Dec, Jan–Mar, or Apr–Jun) by
+              invoice date. Credit notes reduce the totals; quotes, drafts, and void
+              invoices are left out. Retention is a hold, not a GST adjustment. This report
+              is not a BAS and it does not lodge anything.
             </p>
             <form
               method="get"
@@ -664,7 +668,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
           <section className="surface p-6" id="api">
             <h2 className="font-display text-2xl">HTTP API</h2>
-            <ul className="mt-2 max-w-2xl space-y-1 text-sm text-muted">
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              Everything above is also reachable over HTTP, for integrating with your own
+              tools. Full schema is at <code className="font-mono">/openapi.yaml</code>.
+            </p>
+            <ul className="mt-3 max-w-2xl space-y-1 text-sm text-muted">
               <li>
                 <code className="font-mono">POST /api/payment-webhook</code> — record a
                 payment (same rules as Record payment).
@@ -696,8 +704,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <section className="surface p-6" id="rates" data-tour="rates">
             <h2 className="font-display text-2xl">Rate card</h2>
             <p className="mt-2 text-sm text-muted">
-              Sell prices for this organisation, with optional cost. Markup is (sell − cost) ÷
-              cost. Cost is not printed.
+              Sell prices for this organisation, with an optional cost per item. Markup is
+              calculated as (sell − cost) ÷ cost and shown to you only — cost never prints
+              on a quote or invoice.
             </p>
             {rateList.length === 0 ? (
               <p className="mt-3 text-sm text-muted">No rates yet.</p>
@@ -930,9 +939,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 <textarea className="field mt-1 min-h-20" name="notes" maxLength={2000} />
               </label>
               <p className="text-sm text-muted sm:col-span-2">
-                Pick an existing customer, or leave that blank and type a name and suburb.
-                Phone and email on this form are saved only when creating a new customer.
-                Inspection fields print on the quote and invoice. Job notes stay internal.
+                Choose an existing customer, or leave that blank and type a name and suburb
+                to create a new one. Phone and email here are only saved when you create a
+                new customer. Inspection fields print on the quote and invoice; job notes
+                stay internal to your ledger.
               </p>
               <div>
               <PendingSubmit

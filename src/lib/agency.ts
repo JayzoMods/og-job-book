@@ -11,26 +11,26 @@ export type HowToUseStep = {
 export const HOW_TO_USE_STEPS: readonly HowToUseStep[] = [
   {
     title: "Open the books",
-    body: "If sign-in is on, create an account. A new account gets 24 hours. If sign-in is off, click Load demo on the home page.",
+    body: "No account? Click Load demo on the home page and you’re straight in. Signing up instead starts a free 24-hour trial on your own account.",
   },
   {
-    title: "Start from a sample, or save the organisation",
-    body: "Fill sample books copies a fictional inspection ledger onto this account only — it does not wipe other organisations. Or pick a template on the organisation form and save. You need a business name, address, and ABN. If GST registered is off, quotes and invoices do not charge GST.",
+    title: "Start from a sample, or set up your own organisation",
+    body: "Fill sample books drops a fictional inspection ledger onto your account only — it never touches anyone else’s organisation. Prefer your own details? Pick a template on the organisation form, then save with a business name, address, and ABN. Turn GST registered off and quotes and invoices stop charging GST.",
   },
   {
     title: "Create a job",
-    body: "A job needs a description and either an existing customer or a name and suburb. Inspection fields print on the quote and invoice. Job notes stay internal.",
+    body: "A job needs a description, plus either an existing customer or a new name and suburb. Optional inspection fields (property, vendor, purchaser, report type) print on the quote and invoice. Job notes are for your eyes only.",
   },
   {
-    title: "Quote with GST on the lines",
-    body: "Add lines with quantity, unit price, and a tax code. Inclusive GST is the total divided by 11 (nearest cent). Exclusive is 10%. Send, print, or share. Drafts stay in this ledger.",
+    title: "Quote it, with GST worked out on every line",
+    body: "Add lines with a quantity, unit price, and tax code. Inclusive GST is simply the total divided by 11, rounded to the nearest cent; exclusive GST is 10% on top. Send the quote, print it, or share a link — drafts stay private to your ledger.",
   },
   {
-    title: "Invoice and record payment",
-    body: "Accept the quote, issue an invoice, then record cash, transfer, or card as a status. PayID and BSB print as entered — we do not check the account.",
+    title: "Issue the invoice and record the payment",
+    body: "Accept the quote, issue the invoice, then record cash, transfer, or card payment as they come in. PayID and BSB details print exactly as entered — this is a display only, not a live bank check.",
   },
   {
-    title: "Print and export",
-    body: "Print stays A4. The GST quarter report is sales GST by invoice date — not a BAS and it does not lodge. Export JSON, CSV, or a BAS Check-shaped CSV of sales lines.",
+    title: "Print, and export when you need to",
+    body: "Every document prints cleanly on A4. A GST-quarter report totals sales GST by invoice date for your own records — it is not a BAS and does not lodge anything. Export the whole ledger as JSON, CSV, or a BAS Check-shaped CSV of sales lines.",
   },
 ];

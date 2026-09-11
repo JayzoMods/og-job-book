@@ -17,9 +17,9 @@ export function SiteFooter() {
           <a className="text-navy underline-offset-2 hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
             {CONTACT_EMAIL}
           </a>
-          . Public hire repo — not a field-service platform.
+          . A public portfolio project — not a field-service platform.
         </p>
-        <p>This is not tax advice and does not lodge a BAS.</p>
+        <p>This is not tax advice, and it does not lodge anything with the ATO.</p>
       </div>
     </footer>
   );

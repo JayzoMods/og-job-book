@@ -249,7 +249,7 @@ export function PrintSheet({
               ))}
             </dl>
             <p className="mt-2 text-xs text-[#4b5563]">
-              Shown as given. Not Confirmation of Payee. We do not check this account.
+              Shown as entered. Not Confirmation of Payee — we do not check the account.
             </p>
           </section>
         ) : null}
@@ -267,11 +267,11 @@ export function PrintSheet({
         <p className="mt-10 text-xs text-[#4b5563]">
           {kind === "credit"
             ? gstRegistered
-              ? "This credit note reduces the amount owing on the named invoice. This is not tax advice and does not lodge a BAS. Amounts are AUD. Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%."
-              : "This credit note reduces the amount owing on the named invoice. This organisation is not GST registered, so GST is not charged. This is not tax advice and does not lodge a BAS. Amounts are AUD."
+              ? "This credit note reduces the amount owing on the named invoice. Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%. This is not tax advice, and it does not lodge with the ATO. Amounts are AUD."
+              : "This credit note reduces the amount owing on the named invoice. This organisation is not GST registered, so GST is not charged. This is not tax advice, and it does not lodge with the ATO. Amounts are AUD."
             : gstRegistered
-              ? "This is not tax advice and does not lodge a BAS. Amounts are AUD. Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%. Retention is a hold of billed amounts, not a GST adjustment."
-              : "This organisation is not GST registered, so GST is not charged. This is not tax advice and does not lodge a BAS. Amounts are AUD. Retention is a hold of billed amounts."}
+              ? "Inclusive GST is 1/11 of the line total, nearest cent. Exclusive GST is 10%. Retention is a hold of billed amounts, not a GST adjustment. This is not tax advice, and it does not lodge with the ATO. Amounts are AUD."
+              : "This organisation is not GST registered, so GST is not charged. Retention is a hold of billed amounts, not a GST adjustment. This is not tax advice, and it does not lodge with the ATO. Amounts are AUD."}
         </p>
       </article>
     </div>

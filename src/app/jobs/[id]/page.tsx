@@ -993,7 +993,7 @@ export default async function JobPage({
                           ))}
                         </dl>
                         <p className="text-muted">
-                          Shown as given. We do not check this account.
+                          Shown as entered. We do not check the account.
                         </p>
                       </div>
                     ) : null}

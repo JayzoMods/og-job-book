@@ -174,13 +174,13 @@ export function composeDocumentEmail(input: {
   const link = origin ? `${origin}${path}` : path;
   const subject = `${title} from ${input.orgName}`;
   const html = [
-    `<p>${escapeHtml(input.orgName)}</p>`,
-    `<p>ABN ${escapeHtml(abn)}</p>`,
-    `<p>${escapeHtml(title)}</p>`,
+    `<p>Hi,</p>`,
+    `<p>Please find your ${escapeHtml(title)} from ${escapeHtml(input.orgName)} (ABN ${escapeHtml(abn)}) below.</p>`,
     `<p>GST ${escapeHtml(gst)}</p>`,
     `<p>Total ${escapeHtml(total)}</p>`,
     `<p><a href="${escapeHtml(link)}">Open the document</a></p>`,
-    `<p>This is not tax advice. OG Job Book does not lodge a BAS.</p>`,
+    `<p>Thanks for your business.</p>`,
+    `<p style="color:#6b7280;font-size:12px;">This is not tax advice, and OG Job Book does not lodge a BAS.</p>`,
   ].join("");
   return { subject, html };
 }
