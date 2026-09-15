@@ -1,14 +1,17 @@
 import { createHash } from "node:crypto";
 
 export const AUTH_NOTE =
-  "Optional first-party sign-in maps a user to one organisation. Off until AUTH_SECRET is set (32+ characters). Leave it unset on a public no-login deploy. A 24-hour trial starts on sign-up. ADMIN_EMAIL skips the clock. New trials from the same network are locked for 24 hours. Not staff roles. Not a customer portal.";
+  "Optional first-party sign-in maps a user to one organisation. Off until AUTH_SECRET is set (32+ characters). Leave it unset on a public no-login deploy. A 24-hour trial starts on sign-up. ADMIN_EMAIL skips the clock. New trials from the same browser or network are locked for 24 hours. Not staff roles. Not a customer portal.";
 
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
 export const SESSION_COOKIE = "og_job_book_session";
+export const TRIAL_DEVICE_COOKIE = "og_job_book_trial";
 export const SESSION_MAX_MS = 30 * 24 * 60 * 60 * 1000;
+export const TRIAL_DEVICE_MAX_MS = 30 * 24 * 60 * 60 * 1000;
 export const AUTH_SECRET_MIN = 32;
 export const AUTH_SECRET_MAX = 256;
 export const USER_ID_MAX = 128;
+export const TRIAL_DEVICE_TOKEN_LEN = 64;
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,6 +88,22 @@ export function parseUserId(
   return USER_ID_RE.test(trimmed) ? trimmed.toLowerCase() : null;
 }
 
+/** Strip zone ids and IPv4-mapped IPv6 so the same host does not mint two locks. */
+export function normalizeClientIp(ip: string): string {
+  let value = ip.trim().toLowerCase();
+  const zone = value.indexOf("%");
+  if (zone !== -1) {
+    value = value.slice(0, zone);
+  }
+  if (value.startsWith("::ffff:")) {
+    const mapped = value.slice("::ffff:".length);
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(mapped)) {
+      return mapped;
+    }
+  }
+  return value;
+}
+
 export function parseClientIp(
   raw: string | number | null | undefined,
 ): string | null {
@@ -92,7 +111,7 @@ export function parseClientIp(
   if (trimmed === "") {
     return null;
   }
-  const first = (trimmed.split(",")[0] ?? "").trim().toLowerCase();
+  const first = normalizeClientIp((trimmed.split(",")[0] ?? "").trim());
   if (first.length < 3 || first.length > 45) {
     return null;
   }
@@ -105,15 +124,45 @@ export function parseClientIp(
 export function clientIpFromHeaders(
   getHeader: (name: string) => string | null,
 ): string | null {
+  // Prefer Vercel’s own client-IP headers before x-forwarded-for (proxy-safe).
   return parseClientIp(
-    getHeader("x-forwarded-for") ??
+    getHeader("x-vercel-forwarded-for") ??
       getHeader("x-real-ip") ??
-      getHeader("x-vercel-forwarded-for"),
+      getHeader("x-forwarded-for"),
   );
 }
 
 export function hashTrialIp(ip: string, secret: string): string {
-  return createHash("sha256").update(`${secret}\n${ip}`, "utf8").digest("hex");
+  return createHash("sha256")
+    .update(`${secret}\nip\n${normalizeClientIp(ip)}`, "utf8")
+    .digest("hex");
+}
+
+export function newTrialDeviceToken(): string {
+  const bytes = new Uint8Array(TRIAL_DEVICE_TOKEN_LEN / 2);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+export function parseTrialDeviceToken(
+  raw: string | number | null | undefined,
+): string | null {
+  const trimmed = String(raw ?? "").trim().toLowerCase();
+  if (trimmed.length !== TRIAL_DEVICE_TOKEN_LEN) {
+    return null;
+  }
+  if (!/^[0-9a-f]+$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+export function hashTrialDevice(token: string, secret: string): string {
+  return createHash("sha256")
+    .update(`${secret}\ndevice\n${token}`, "utf8")
+    .digest("hex");
 }
 
 export function hashSessionToken(token: string): string {

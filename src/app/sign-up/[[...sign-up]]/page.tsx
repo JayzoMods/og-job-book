@@ -9,7 +9,7 @@ const ERRORS: Record<string, string> = {
   fields: "Email and a password of at least 8 characters are required.",
   db: "Postgres is not connected.",
   taken: "That email already has an account. Sign in.",
-  ip: "A trial from this network is already active. Sign in to that account, or wait 24 hours.",
+  ip: "A trial from this browser or network is already active. Sign in to that account, or wait 24 hours.",
 };
 
 export default async function SignUpPage({
@@ -46,8 +46,8 @@ export default async function SignUpPage({
         <p className="kicker">Account</p>
         <h1 className="mt-2 font-display text-3xl">Create an account</h1>
         <p className="mt-3 text-sm text-muted">
-          Sign up starts a 24-hour trial on this email. One new trial per network every 24
-          hours. Not tax advice.
+          Sign up starts a 24-hour trial on this email. One new trial per browser or network
+          every 24 hours. Not tax advice.
         </p>
         {error ? (
           <p className="banner banner-error mt-4" role="alert">

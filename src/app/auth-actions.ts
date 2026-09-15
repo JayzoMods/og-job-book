@@ -8,17 +8,25 @@ import {
   insertAuthUser,
 } from "@/db/queries";
 import {
+  TRIAL_DEVICE_COOKIE,
   adminEmailFromEnv,
   authConfigured,
   authSecretFromEnv,
   clientIpFromHeaders,
+  hashTrialDevice,
   hashTrialIp,
   isAdminEmail,
+  newTrialDeviceToken,
   parseAccountEmail,
+  parseTrialDeviceToken,
 } from "@/lib/ledger/auth";
 import { hashPassword, parsePassword, verifyPassword } from "@/lib/ledger/password";
-import { createUserSession, destroyUserSession } from "@/lib/session";
-import { headers } from "next/headers";
+import {
+  createUserSession,
+  destroyUserSession,
+  setTrialDeviceCookie,
+} from "@/lib/session";
+import { cookies, headers } from "next/headers";
 
 function signupError(code: string): never {
   redirect(`/sign-up?error=${code}`);
@@ -50,14 +58,31 @@ export async function signUpAction(formData: FormData) {
     signupError("taken");
   }
   const admin = isAdminEmail(email, adminEmailFromEnv());
+  const cookieStore = await cookies();
+  let deviceToken = parseTrialDeviceToken(
+    cookieStore.get(TRIAL_DEVICE_COOKIE)?.value,
+  );
+  if (!deviceToken) {
+    deviceToken = newTrialDeviceToken();
+  }
   if (!admin) {
+    const now = new Date();
     const headerList = await headers();
     const ip = clientIpFromHeaders((name) => headerList.get(name));
     if (!ip) {
       signupError("ip");
     }
-    const locked = await claimTrialIp(db, hashTrialIp(ip, secret), new Date());
-    if (!locked) {
+    // IP first, then browser cookie — either signal blocks a second trial.
+    const ipLocked = await claimTrialIp(db, hashTrialIp(ip, secret), now);
+    if (!ipLocked) {
+      signupError("ip");
+    }
+    const deviceLocked = await claimTrialIp(
+      db,
+      hashTrialDevice(deviceToken, secret),
+      now,
+    );
+    if (!deviceLocked) {
       signupError("ip");
     }
   }
@@ -74,6 +99,7 @@ export async function signUpAction(formData: FormData) {
   } catch {
     signupError("taken");
   }
+  await setTrialDeviceCookie(deviceToken);
   await createUserSession(db, userId);
   redirect("/");
 }

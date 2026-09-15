@@ -10,14 +10,18 @@ import {
   clientIpFromHeaders,
   describeAuthSkip,
   hashSessionToken,
+  hashTrialDevice,
   hashTrialIp,
   isAdminEmail,
   isAuthEntryPath,
   isPublicTenantPath,
+  newTrialDeviceToken,
+  normalizeClientIp,
   orgOwnsResource,
   parseAdminEmail,
   parseAuthSecret,
   parseClientIp,
+  parseTrialDeviceToken,
   parseUserId,
   tenantApiStatus,
   tenantGate,
@@ -96,6 +100,14 @@ describe("parseUserId", () => {
   });
 });
 
+describe("normalizeClientIp", () => {
+  it("collapses IPv4-mapped IPv6 and strips zone ids", () => {
+    expect(normalizeClientIp("::ffff:203.0.113.10")).toBe("203.0.113.10");
+    expect(normalizeClientIp("2001:db8::1%eth0")).toBe("2001:db8::1");
+    expect(normalizeClientIp("  198.51.100.20  ")).toBe("198.51.100.20");
+  });
+});
+
 describe("parseClientIp", () => {
   it("rejects empty and junk", () => {
     expect(parseClientIp("")).toBeNull();
@@ -104,14 +116,26 @@ describe("parseClientIp", () => {
     expect(parseClientIp("1")).toBeNull();
   });
 
-  it("takes the first forwarded hop", () => {
+  it("takes the first forwarded hop and prefers Vercel headers", () => {
     expect(parseClientIp("  203.0.113.10, 10.0.0.1  ")).toBe("203.0.113.10");
     expect(parseClientIp("2001:db8::1")).toBe("2001:db8::1");
+    expect(parseClientIp("::ffff:198.51.100.20")).toBe("198.51.100.20");
     expect(
       clientIpFromHeaders((name) =>
         name === "x-forwarded-for" ? "198.51.100.20" : null,
       ),
     ).toBe("198.51.100.20");
+    expect(
+      clientIpFromHeaders((name) => {
+        if (name === "x-vercel-forwarded-for") {
+          return "203.0.113.50";
+        }
+        if (name === "x-forwarded-for") {
+          return "198.51.100.20";
+        }
+        return null;
+      }),
+    ).toBe("203.0.113.50");
   });
 });
 
@@ -119,10 +143,25 @@ describe("hashTrialIp", () => {
   it("is stable for the same secret and ip, and differs when either changes", () => {
     const a = hashTrialIp("203.0.113.10", SECRET);
     expect(a).toBe(hashTrialIp("203.0.113.10", SECRET));
+    expect(a).toBe(hashTrialIp("::ffff:203.0.113.10", SECRET));
     expect(a).not.toBe(hashTrialIp("203.0.113.11", SECRET));
     expect(a).not.toBe(hashTrialIp("203.0.113.10", "b".repeat(32)));
     expect(a).toMatch(/^[0-9a-f]{64}$/);
     expect(a).not.toContain("203.0.113.10");
+  });
+});
+
+describe("trial device token", () => {
+  it("mints a 64-hex token and hashes it apart from IP locks", () => {
+    const token = newTrialDeviceToken();
+    expect(parseTrialDeviceToken(token)).toBe(token);
+    expect(parseTrialDeviceToken("short")).toBeNull();
+    expect(parseTrialDeviceToken("g".repeat(64))).toBeNull();
+    const deviceHash = hashTrialDevice(token, SECRET);
+    expect(deviceHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(deviceHash).toBe(hashTrialDevice(token, SECRET));
+    expect(deviceHash).not.toBe(hashTrialIp(token, SECRET));
+    expect(deviceHash).not.toBe(hashTrialDevice(token, "b".repeat(32)));
   });
 });
 

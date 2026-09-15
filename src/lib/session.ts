@@ -11,6 +11,8 @@ import {
 import {
   SESSION_COOKIE,
   SESSION_MAX_MS,
+  TRIAL_DEVICE_COOKIE,
+  TRIAL_DEVICE_MAX_MS,
   authConfigured,
   hashSessionToken,
   parseUserId,
@@ -32,6 +34,18 @@ export async function setSessionCookie(token: string): Promise<void> {
     secure: cookieSecure(),
     path: "/",
     maxAge: Math.floor(SESSION_MAX_MS / 1000),
+  });
+}
+
+/** Survives sign-out so a second trial from the same browser is locked. */
+export async function setTrialDeviceCookie(token: string): Promise<void> {
+  const store = await cookies();
+  store.set(TRIAL_DEVICE_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: cookieSecure(),
+    path: "/",
+    maxAge: Math.floor(TRIAL_DEVICE_MAX_MS / 1000),
   });
 }
 
