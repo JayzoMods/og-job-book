@@ -27,6 +27,9 @@ describe("how to use steps", () => {
     const blob = HOW_TO_USE_STEPS.map((step) => `${step.title} ${step.body}`).join("\n");
     expect(blob).not.toMatch(/tax advice|lodged this|we lodged/i);
     expect(blob).toMatch(/not a BAS/i);
+    expect(blob).not.toMatch(/Load demo/i);
+    expect(blob).toMatch(/Fill sample books/i);
+    expect(blob).toMatch(/24-hour trial/i);
     expect(blob).not.toMatch(/REDIS_URL|STRIPE_|XERO_|CLERK_|AI_GATEWAY|ABR_GUID/);
   });
 });

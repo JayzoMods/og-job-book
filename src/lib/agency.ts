@@ -11,7 +11,7 @@ export type HowToUseStep = {
 export const HOW_TO_USE_STEPS: readonly HowToUseStep[] = [
   {
     title: "Open the books",
-    body: "No account? Click Load demo on the home page and you’re straight in. Signing up instead starts a free 24-hour trial on your own account.",
+    body: "Create an account on the sign-up page — that starts a free 24-hour trial on your own ledger. One new trial per browser or network every 24 hours. Sign in afterwards to open books you already made.",
   },
   {
     title: "Start from a sample, or set up your own organisation",
